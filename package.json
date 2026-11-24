@@ -1,0 +1,33 @@
+{
+  "name": "proofvault-midnight",
+  "version": "1.0.0",
+  "description": "Zero-Knowledge Selective-Disclosure Treasury Compliance & Confidential Invoice Settlement dApp on Midnight Network",
+  "license": "Apache-2.0",
+  "private": false,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "compile:contract": "compact compile contracts/proofvault.compact contracts/managed/proofvault",
+    "compile:contract:fast": "compact compile --skip-zk contracts/proofvault.compact contracts/managed/proofvault"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "0.21.0",
+    "@midnight-ntwrk/dapp-connector-api": "4.1.0",
+    "@noble/hashes": "^1.7.1",
+    "lucide-react": "^0.511.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.1.4"
+  }
+}

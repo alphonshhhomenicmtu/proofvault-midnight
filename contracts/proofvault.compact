@@ -1,0 +1,269 @@
+// ProofVault — Zero-Knowledge Selective-Disclosure Treasury Compliance &
+// Confidential Invoice / Bounty Settlement Contract on Midnight Network
+//
+// License: Apache-2.0
+// Toolchain: Compact 0.36.1 / Language Version 0.28.0 / Ledger 9 (zkir-3.2.1)
+
+pragma language_version >= 0.28.0;
+
+import CompactStandardLibrary;
+
+export enum DisclosureTier {
+  MinimalSolvency,
+  ThresholdBand,
+  AuditorScoped
+}
+
+export enum VaultStatus {
+  Active,
+  Paused
+}
+
+export struct AuditReceipt {
+  invoiceCommitment: Bytes<32>,
+  nullifier: Bytes<32>,
+  budgetTierCap: Uint<64>,
+  jurisdictionRoot: Bytes<32>,
+  auditorTag: Bytes<32>,
+  disclosureTier: DisclosureTier,
+  settledEpoch: Uint<64>
+}
+
+// ============================================================================
+// PUBLIC ON-CHAIN LEDGER STATE (Shielded Commitments, Roots, Nullifiers Only)
+// ============================================================================
+
+export ledger treasuryAuthority: Bytes<32>;
+export ledger treasuryBalanceCommitment: Bytes<32>;
+export ledger policyMaxSingleSettlement: Uint<64>;
+export ledger policyMinReserveFloor: Uint<64>;
+export ledger currentEpoch: Uint<64>;
+export ledger vaultStatus: VaultStatus;
+export ledger approvedJurisdictions: HistoricMerkleTree<8, Bytes<32>>;
+export ledger usedInvoiceNullifiers: Set<Bytes<32>>;
+export ledger auditReceipts: Map<Bytes<32>, AuditReceipt>;
+export ledger settledInvoiceCount: Counter;
+
+// ============================================================================
+// PRIVATE OFF-CHAIN WITNESSES (Never Disclosed to the Public Ledger)
+// ============================================================================
+
+witness operatorSecretKey(): Bytes<32>;
+witness treasurySecretBalance(): Uint<64>;
+witness treasuryBlindingFactor(): Bytes<32>;
+witness nextTreasuryBlindingFactor(): Bytes<32>;
+witness invoiceVendorId(): Bytes<32>;
+witness invoiceLineItemsHash(): Bytes<32>;
+witness invoiceAmount(): Uint<64>;
+witness invoiceSalt(): Bytes<32>;
+witness jurisdictionLeaf(): Bytes<32>;
+witness jurisdictionMerklePath(): MerkleTreePath<8, Bytes<32>>;
+witness auditorViewingKeyHash(): Bytes<32>;
+
+// ============================================================================
+// PURE HELPER CIRCUITS
+// ============================================================================
+
+export circuit deriveOperatorPublicKey(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "proofvault:operator:v1"), sk]);
+}
+
+export circuit deriveNullifier(vendorId: Bytes<32>, lineItemsHash: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "proofvault:nullifier:v1"),
+    vendorId,
+    lineItemsHash
+  ]);
+}
+
+export circuit deriveInvoiceCommitment(
+  vendorId: Bytes<32>,
+  lineItemsHash: Bytes<32>,
+  amount: Uint<64>,
+  salt: Bytes<32>
+): Bytes<32> {
+  return persistentCommit<Vector<4, Bytes<32>>>(
+    [
+      pad(32, "proofvault:invoice:v1"),
+      vendorId,
+      lineItemsHash,
+      persistentHash<Uint<64>>(amount)
+    ],
+    salt
+  );
+}
+
+// ============================================================================
+// CONSTRUCTOR
+// ============================================================================
+
+constructor(
+  initOperatorPk: Bytes<32>,
+  initBalanceCommitment: Bytes<32>,
+  maxSingleSettlement: Uint<64>,
+  minReserveFloor: Uint<64>
+) {
+  assert(maxSingleSettlement > 0, "Max single settlement must be positive");
+  treasuryAuthority = disclose(initOperatorPk);
+  treasuryBalanceCommitment = disclose(initBalanceCommitment);
+  policyMaxSingleSettlement = disclose(maxSingleSettlement);
+  policyMinReserveFloor = disclose(minReserveFloor);
+  currentEpoch = 1;
+  vaultStatus = VaultStatus.Active;
+}
+
+// ============================================================================
+// CIRCUIT 1: REGISTER APPROVED NON-SANCTIONED JURISDICTION
+// ============================================================================
+
+export circuit registerApprovedJurisdiction(jurisdictionDigest: Bytes<32>): [] {
+  const opPk = deriveOperatorPublicKey(operatorSecretKey());
+  assert(opPk == treasuryAuthority, "Unauthorized treasury operator");
+  approvedJurisdictions.insert(disclose(jurisdictionDigest));
+}
+
+// ============================================================================
+// CIRCUIT 2: ZERO-KNOWLEDGE TREASURY SOLVENCY ATTESTATION
+// ============================================================================
+
+export circuit proveTreasurySolvency(claimedMinFloor: Uint<64>): Bytes<32> {
+  const balance = treasurySecretBalance();
+  const salt = treasuryBlindingFactor();
+  const commitment = persistentCommit<Uint<64>>(balance, salt);
+
+  assert(commitment == treasuryBalanceCommitment, "Treasury commitment mismatch");
+  assert(balance >= policyMinReserveFloor, "Treasury below governance reserve floor");
+  assert(balance >= claimedMinFloor, "Treasury below requested solvency floor");
+
+  const attestation = persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "proofvault:solvency:v1"),
+    treasuryBalanceCommitment,
+    persistentHash<Uint<64>>(claimedMinFloor)
+  ]);
+  return disclose(attestation);
+}
+
+// ============================================================================
+// CIRCUIT 3: CONFIDENTIAL INVOICE / BOUNTY SETTLEMENT + AUDIT RECEIPT
+// ============================================================================
+
+export circuit settleConfidentialInvoice(
+  budgetTierCap: Uint<64>,
+  tier: DisclosureTier
+): Bytes<32> {
+  assert(vaultStatus == VaultStatus.Active, "Vault is currently paused");
+
+  // 1. Prove operator authority privately without disclosing operator secret key
+  const opPk = deriveOperatorPublicKey(operatorSecretKey());
+  assert(opPk == treasuryAuthority, "Unauthorized treasury operator");
+
+  // 2. Open shielded treasury balance commitment
+  const balance = treasurySecretBalance();
+  const currentSalt = treasuryBlindingFactor();
+  const expectedCommitment = persistentCommit<Uint<64>>(balance, currentSalt);
+  assert(expectedCommitment == treasuryBalanceCommitment, "Treasury commitment mismatch");
+
+  // 3. Enforce private invoice amount bounds and post-settlement solvency floor
+  const amount = invoiceAmount();
+  assert(amount > 0, "Invoice amount must be greater than zero");
+  assert(amount <= budgetTierCap, "Invoice exceeds declared budget tier cap");
+  assert(budgetTierCap <= policyMaxSingleSettlement, "Budget tier exceeds governance ceiling");
+  assert(balance >= amount, "Insufficient treasury balance");
+  const remainingBalance = (balance - amount) as Uint<64>;
+  assert(remainingBalance >= policyMinReserveFloor, "Settlement breaches minimum reserve floor");
+
+  // 4. Prove counterparty belongs to an approved non-sanctioned jurisdiction via HistoricMerkleTree
+  const jLeaf = jurisdictionLeaf();
+  const jPath = jurisdictionMerklePath();
+  assert(jPath.leaf == jLeaf, "Jurisdiction leaf does not match Merkle path");
+  const computedRoot = merkleTreePathRoot<8, Bytes<32>>(jPath);
+  assert(
+    approvedJurisdictions.checkRoot(disclose(computedRoot)),
+    "Jurisdiction is not in the approved compliance Merkle tree"
+  );
+
+  // 5. Derive shielded invoice commitment and deterministic anti-replay nullifier
+  const vendorId = invoiceVendorId();
+  const lineItemsHash = invoiceLineItemsHash();
+  const invSalt = invoiceSalt();
+
+  const nullifier = deriveNullifier(vendorId, lineItemsHash);
+  const publicNullifier = disclose(nullifier);
+  assert(!usedInvoiceNullifiers.member(publicNullifier), "Invoice nullifier already spent");
+
+  const invoiceCommitment = deriveInvoiceCommitment(vendorId, lineItemsHash, amount, invSalt);
+  const publicInvoiceCommitment = disclose(invoiceCommitment);
+
+  // 6. Selective-disclosure receipt construction
+  const publicTier = disclose(tier);
+  const publicCap = disclose(budgetTierCap);
+  const disclosedRootField = disclose(computedRoot.field);
+  const rootBytes = persistentHash<Field>(disclosedRootField);
+
+  const rawAuditorTag = persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "proofvault:auditor:v1"),
+    auditorViewingKeyHash(),
+    invoiceCommitment
+  ]);
+  const publicAuditorTag =
+    publicTier == DisclosureTier.AuditorScoped
+      ? disclose(rawAuditorTag)
+      : pad(32, "");
+
+  const receiptId = disclose(
+    persistentHash<Vector<3, Bytes<32>>>([
+      pad(32, "proofvault:receipt:v1"),
+      publicInvoiceCommitment,
+      publicNullifier
+    ])
+  );
+
+  // 7. Commit shielded balance transition and write public selective-disclosure receipt
+  const nextSalt = nextTreasuryBlindingFactor();
+  const nextCommitment = persistentCommit<Uint<64>>(remainingBalance, nextSalt);
+  treasuryBalanceCommitment = disclose(nextCommitment);
+  usedInvoiceNullifiers.insert(publicNullifier);
+  settledInvoiceCount.increment(1);
+
+  auditReceipts.insert(
+    receiptId,
+    AuditReceipt {
+      invoiceCommitment: publicInvoiceCommitment,
+      nullifier: publicNullifier,
+      budgetTierCap: publicCap,
+      jurisdictionRoot: rootBytes,
+      auditorTag: publicAuditorTag,
+      disclosureTier: publicTier,
+      settledEpoch: currentEpoch
+    }
+  );
+
+  return receiptId;
+}
+
+// ============================================================================
+// CIRCUIT 4: GOVERNANCE POLICY ROTATION & CIRCUIT BREAKER
+// ============================================================================
+
+export circuit updateGovernancePolicy(
+  newMaxSettlement: Uint<64>,
+  newMinReserve: Uint<64>,
+  newStatus: VaultStatus
+): [] {
+  const opPk = deriveOperatorPublicKey(operatorSecretKey());
+  assert(opPk == treasuryAuthority, "Unauthorized treasury operator");
+  assert(newMaxSettlement > 0, "Max single settlement must be positive");
+
+  policyMaxSingleSettlement = disclose(newMaxSettlement);
+  policyMinReserveFloor = disclose(newMinReserve);
+  vaultStatus = disclose(newStatus);
+  currentEpoch = (currentEpoch + 1) as Uint<64>;
+}
+
+// ============================================================================
+// CIRCUIT 5: ON-CHAIN AUDIT RECEIPT VERIFICATION
+// ============================================================================
+
+export circuit verifyReceiptOnChain(receiptId: Bytes<32>): Boolean {
+  return auditReceipts.member(disclose(receiptId));
+}
