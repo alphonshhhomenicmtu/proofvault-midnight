@@ -76,6 +76,19 @@ export function SettleTab({
     setDisclosureTier(preset.input.disclosureTier);
   };
 
+  const handleSelectTier = (tier: DisclosureTier) => {
+    setDisclosureTier(tier);
+    const maxUsd = ledger.policyMaxSingleSettlementCents / 100;
+    if (tier === DisclosureTier.MinimalSolvency) {
+      setBudgetTierCapUsd(maxUsd.toString());
+    } else if (
+      tier === DisclosureTier.ThresholdBand &&
+      Number(budgetTierCapUsd) >= maxUsd
+    ) {
+      setBudgetTierCapUsd(Math.max(25000, Math.floor(maxUsd / 2)).toString());
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const amt = Math.round(Number(amountUsd.replace(/,/g, "")) * 100);
@@ -101,11 +114,11 @@ export function SettleTab({
       {/* 1-Click Scenario Selector */}
       <div style={{ marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#cbd5e1" }}>
-          Quick Scenarios — Valid Confidential Settlements &amp; Live ZK Guard Tests
+          Quick Scenarios — Valid Selective-Disclosure Tiers &amp; Live Circuit Guard Tests
         </div>
         <span className="mono" style={{ fontSize: 11.5, color: "#64748b" }}>
-          Governance Cap: {formatUsdFromCents(ledger.policyMaxSingleSettlementCents)} · Min Floor:{" "}
-          {formatUsdFromCents(ledger.policyMinReserveFloorCents)}
+          Governance Ceiling: {formatUsdFromCents(ledger.policyMaxSingleSettlementCents)} · Min Floor:{" "}
+          {formatUsdFromCents(ledger.policyMinReserveFloorCents)} · Strict: amount &lt; cap
         </span>
       </div>
 
@@ -141,7 +154,7 @@ export function SettleTab({
                 Confidential Invoice &amp; Witness Inputs
               </h2>
               <p className="card-subtitle">
-                Private fields execute inside <span className="mono">settleConfidentialInvoice()</span>. Only the commitment, nullifier, Merkle root, and tier cap reach Midnight&apos;s public ledger.
+                Private inputs stay in the local witness vault. The simulator models <span className="mono">settleConfidentialInvoice()</span> v2.1: secret-keyed nullifiers, jurisdiction-bound commitments, and strict <span className="mono">cap &gt; amount</span>.
               </p>
             </div>
             <span className="badge amber">PRIVATE WITNESSES</span>
@@ -193,8 +206,8 @@ export function SettleTab({
             <div className="field">
               <label htmlFor="jurisdiction-select">
                 <span>Counterparty Jurisdiction</span>
-                <span className={`mono`} style={{ color: isJurisdictionApproved ? "#34d399" : "#fb7185" }}>
-                  {isJurisdictionApproved ? "in Merkle tree" : "unlisted / blocked"}
+                <span className="mono" style={{ color: isJurisdictionApproved ? "#34d399" : "#fb7185" }}>
+                  {isJurisdictionApproved ? "bound in commit + tree" : "unlisted / blocked"}
                 </span>
               </label>
               <select
@@ -237,7 +250,7 @@ export function SettleTab({
             <div className="field">
               <label htmlFor="invoice-amount">
                 <span>Exact Payout Amount (USD)</span>
-                <span className="mono" style={{ color: "#f59e0b" }}>private witness</span>
+                <span className="mono" style={{ color: "#f59e0b" }}>private · &lt; cap</span>
               </label>
               <input
                 id="invoice-amount"
@@ -254,7 +267,13 @@ export function SettleTab({
             <div className="field">
               <label htmlFor="budget-cap">
                 <span>Public Budget Tier Cap (USD)</span>
-                <span className="mono" style={{ color: "#38bdf8" }}>public bound</span>
+                <span className="mono" style={{ color: "#38bdf8" }}>
+                  {disclosureTier === DisclosureTier.MinimalSolvency
+                    ? "must equal ceiling"
+                    : disclosureTier === DisclosureTier.ThresholdBand
+                      ? "strictly < ceiling"
+                      : "strictly > amount"}
+                </span>
               </label>
               <input
                 id="budget-cap"
@@ -270,7 +289,7 @@ export function SettleTab({
 
             <div className="field full">
               <label>
-                <span>Selective-Disclosure Receipt Tier</span>
+                <span>Selective-Disclosure Receipt Tier (Distinct v2.1 Circuit Rules)</span>
                 <span className="mono" style={{ color: "#38bdf8" }}>enum DisclosureTier</span>
               </label>
               <div className="tier-group">
@@ -278,24 +297,24 @@ export function SettleTab({
                   {
                     tier: DisclosureTier.MinimalSolvency,
                     title: "MinimalSolvency",
-                    hint: "Zero auditor tag · Solvency + cap only"
+                    hint: "Cap == full ceiling · zero auditorTag"
                   },
                   {
                     tier: DisclosureTier.ThresholdBand,
                     title: "ThresholdBand",
-                    hint: "DAO budget band + compliance root"
+                    hint: "Cap < ceiling (band) · zero auditorTag"
                   },
                   {
                     tier: DisclosureTier.AuditorScoped,
                     title: "AuditorScoped",
-                    hint: "Binds external auditor viewing key tag"
+                    hint: "Registered auditor key + scoped MAC"
                   }
                 ].map((opt) => (
                   <button
                     key={opt.tier}
                     type="button"
                     className={`tier-option ${disclosureTier === opt.tier ? "active" : ""}`}
-                    onClick={() => setDisclosureTier(opt.tier)}
+                    onClick={() => handleSelectTier(opt.tier)}
                   >
                     <span className="tier-name">{opt.title}</span>
                     <span className="tier-hint">{opt.hint}</span>
@@ -308,30 +327,30 @@ export function SettleTab({
           <div style={{ marginTop: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, color: "#94a3b8", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <EyeOff size={14} color="#f59e0b" />
-              Counterparty, line items, country &amp; exact amount remain shielded
+              Counterparty, scope, country, exact payout &amp; nullifier salt stay local
             </span>
             <button type="submit" className="btn primary">
               <Cpu size={15} />
-              Execute ZK Settlement Circuit
+              Run Simulator Settlement
             </button>
           </div>
         </form>
 
-        {/* Right: 6-Stage ZK Proving Pipeline & Payload Inspector */}
+        {/* Right: Deterministic Circuit Simulator Trace & Disclosure Diff */}
         <section className="card public-zone">
           <div className="card-header">
             <div>
               <h2 className="card-title">
                 <ShieldCheck size={16} color="#38bdf8" />
-                ZK Circuit Execution &amp; On-Chain Disclosure Diff
+                SHA-256 Circuit Simulator Trace &amp; Disclosure Diff
               </h2>
               <p className="card-subtitle">
-                Deterministic constraint trace mirroring <span className="mono">settleConfidentialInvoice.zkir</span> (20,385 B).
+                Models all invariants of <span className="mono">settleConfidentialInvoice.zkir</span> (24,040 B) in-browser using SHA-256. Run <span className="mono">npm test</span> for native <span className="mono">compact-runtime</span> execution.
               </p>
             </div>
             {lastResult && (
               <span className={`badge ${lastResult.ok ? "emerald" : "rose"}`}>
-                {lastResult.ok ? `VERIFIED · ${lastResult.proofTimeMs}ms` : "CIRCUIT REJECTED"}
+                {lastResult.ok ? `PASSED · ${lastResult.proofTimeMs}ms` : lastResult.errorCode ?? "REJECTED"}
               </span>
             )}
           </div>
@@ -340,9 +359,9 @@ export function SettleTab({
             <div className="pipeline-step">
               <AlertTriangle size={16} color="#38bdf8" style={{ marginTop: 2, flexShrink: 0 }} />
               <div className="step-body">
-                <div className="step-head">Select a scenario and click &ldquo;Execute ZK Settlement Circuit&rdquo;</div>
+                <div className="step-head">Select a scenario and click &ldquo;Run Simulator Settlement&rdquo;</div>
                 <div className="step-detail">
-                  Run either a compliant settlement or one of the 3 negative guard tests (Sanctioned Jurisdiction, Governance Cap Breach, or Nullifier Replay) to observe live Midnight circuit assertions.
+                  Test all three v2.1 disclosure tiers (MinimalSolvency, ThresholdBand, AuditorScoped) or trigger the built-in negative guards. For 1-click exploit testing, open the <strong>Breaker Lab</strong> tab.
                 </div>
               </div>
             </div>
@@ -352,13 +371,13 @@ export function SettleTab({
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 600 }}>
                     {lastResult.ok
-                      ? "Zero-Knowledge Proof Verified & Committed to Midnight Ledger"
-                      : `ZK Proof Aborted: ${lastResult.error}`}
+                      ? "Simulator Invariants Passed & AuditReceipt Recorded"
+                      : `Circuit Rejected (${lastResult.errorCode ?? "ERR_GUARD"}): ${lastResult.error}`}
                   </div>
                   <div style={{ fontSize: 12, opacity: 0.9, marginTop: 3 }}>
                     {lastResult.ok
-                      ? `Receipt 0x${truncateHex(lastResult.receipt!.receiptId, 14, 10)} stored in auditReceipts Map; treasury balance re-blinded.`
-                      : "Public ledger state unchanged. No nullifier consumed and zero private witness values leaked."}
+                      ? `Receipt 0x${truncateHex(lastResult.receipt!.receiptId, 14, 10)} stored in simulator auditReceipts Map; treasury balance re-blinded with fresh salt.`
+                      : "Public ledger state unchanged. No nullifier consumed and no private witness disclosed."}
                   </div>
                 </div>
                 {lastResult.ok && lastResult.receipt && (
@@ -371,7 +390,7 @@ export function SettleTab({
                         disabled={dispatchingWallet}
                       >
                         <Wallet size={13} />
-                        {dispatchingWallet ? "Dispatching..." : `Sign / Dispatch (${walletState.walletName})`}
+                        {dispatchingWallet ? "Signing..." : `Wallet Check (signData)`}
                       </button>
                     )}
                     <button
@@ -392,7 +411,7 @@ export function SettleTab({
                 >
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 600 }}>
-                      {lastResult.walletDispatch.walletName} Dispatch ({lastResult.walletDispatch.dispatchPath})
+                      {lastResult.walletDispatch.walletName} ({lastResult.walletDispatch.dispatchPath})
                     </div>
                     <div style={{ opacity: 0.92, marginTop: 2 }}>{lastResult.walletDispatch.detail}</div>
                     {lastResult.walletDispatch.signatureHex && (
@@ -429,7 +448,7 @@ export function SettleTab({
               {lastResult.payloadPreview && (
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#38bdf8", marginBottom: 8 }}>
-                    Disclosed On-Chain Ledger Writes (Public)
+                    Disclosed Public Ledger Writes (SHA-256 Simulator)
                   </div>
                   <div className="kv-list" style={{ marginBottom: 12 }}>
                     <div className="kv-row">
@@ -437,11 +456,11 @@ export function SettleTab({
                       <span className="kv-val">0x{truncateHex(lastResult.payloadPreview.disclosedOutputs.receiptId, 14, 12)}</span>
                     </div>
                     <div className="kv-row">
-                      <span className="kv-key">nullifier</span>
+                      <span className="kv-key">nullifier (secret-keyed)</span>
                       <span className="kv-val">0x{truncateHex(lastResult.payloadPreview.disclosedOutputs.nullifier, 14, 12)}</span>
                     </div>
                     <div className="kv-row">
-                      <span className="kv-key">invoiceCommitment</span>
+                      <span className="kv-key">invoiceCommitment (leaf-bound)</span>
                       <span className="kv-val">0x{truncateHex(lastResult.payloadPreview.disclosedOutputs.invoiceCommitment, 14, 12)}</span>
                     </div>
                     <div className="kv-row">
@@ -452,7 +471,7 @@ export function SettleTab({
 
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#f59e0b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                     <ShieldAlert size={14} />
-                    Redacted Off-Chain Witnesses (Never Written On-Chain)
+                    Redacted Off-Chain Witnesses (Never Written Publicly)
                   </div>
                   <div className="pill-row">
                     {lastResult.payloadPreview.shieldedWitnessFieldsRedacted.map((field) => (

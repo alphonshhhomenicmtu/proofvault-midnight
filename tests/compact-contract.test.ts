@@ -92,6 +92,7 @@ class CompiledProofVaultSimulator {
     const contractAddress = runtime.sampleContractAddress();
     const coinPublicKey = runtime.toHex(bytes32FromLabel("proofvault:coin-pk"));
     const initOperatorPk = pureCircuits.deriveOperatorPublicKey(params.operatorSk);
+    const initAuditorCommitment = pureCircuits.deriveAuditorCommitment(params.auditorVkHash);
     const initCommitment = runtime.persistentCommit(
       UINT64_TYPE,
       params.initialBalance,
@@ -117,6 +118,7 @@ class CompiledProofVaultSimulator {
       constructorCtx,
       initOperatorPk,
       initCommitment,
+      initAuditorCommitment,
       params.maxSingleSettlement,
       params.minReserveFloor
     );
@@ -157,7 +159,13 @@ class CompiledProofVaultSimulator {
     this.commitResult(res);
   }
 
-  public async proveSolvency(claimedMinFloor: bigint): Promise<Uint8Array> {
+  public async proveSolvency(
+    claimedMinFloor: bigint,
+    witnessPatch?: Partial<ProofVaultPrivateState>
+  ): Promise<Uint8Array> {
+    if (witnessPatch) {
+      this.privateState = { ...this.privateState, ...witnessPatch };
+    }
     const ctx = this.buildContext("proveTreasurySolvency");
     const res = await this.contract.impureCircuits.proveTreasurySolvency(ctx, claimedMinFloor);
     this.commitResult(res);
@@ -202,7 +210,7 @@ class CompiledProofVaultSimulator {
   }
 }
 
-describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntwrk/compact-runtime@0.21.0)", () => {
+describe("Compiled Compact 0.28.0 v2.1 Contract (proofvault.compact via @midnight-ntwrk/compact-runtime@0.21.0)", () => {
   const operatorSk = bytes32FromLabel("operator:master:secret:2026");
   const initialSalt = bytes32FromLabel("treasury:salt:genesis");
   const auditorVkHash = bytes32FromLabel("auditor:deloitte-zk:vk");
@@ -213,10 +221,10 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
   async function bootVault() {
     const sim = await CompiledProofVaultSimulator.deploy({
       operatorSk,
-      initialBalance: 245_000_000n, // $2,450,000.00
+      initialBalance: 245_000_000n,
       initialSalt,
-      maxSingleSettlement: 15_000_000n, // $150,000.00
-      minReserveFloor: 50_000_000n, // $500,000.00
+      maxSingleSettlement: 15_000_000n,
+      minReserveFloor: 50_000_000n,
       auditorVkHash
     });
     await sim.registerJurisdiction(isoCH);
@@ -224,7 +232,7 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
     return sim;
   }
 
-  it("initializes shielded commitment, governance caps, and HistoricMerkleTree jurisdictions", async () => {
+  it("initializes shielded commitment, registered auditor commitment, governance caps, and HistoricMerkleTree", async () => {
     const sim = await bootVault();
     const state = sim.getLedger();
 
@@ -233,34 +241,50 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
     expect(state.currentEpoch).toBe(1n);
     expect(state.vaultStatus).toBe(VaultStatus.Active);
     expect(state.settledInvoiceCount).toBe(0n);
+    expect(runtime.toHex(state.authorizedAuditorCommitment)).toBe(
+      runtime.toHex(pureCircuits.deriveAuditorCommitment(auditorVkHash))
+    );
+    expect(state.lastSolvencyFloor).toBe(0n);
+    expect(state.lastSolvencyEpoch).toBe(0n);
     expect(state.approvedJurisdictions.firstFree()).toBe(2n);
     expect(state.approvedJurisdictions.findPathForLeaf(isoCH)).toBeDefined();
     expect(state.approvedJurisdictions.findPathForLeaf(isoKP)).toBeUndefined();
   });
 
-  it("generates a verifiable ZK solvency attestation without disclosing exact treasury balance", async () => {
+  it("authenticates proveTreasurySolvency and persists attestation, floor, and epoch into ledger state", async () => {
     const sim = await bootVault();
-    const attestation = await sim.proveSolvency(200_000_000n); // prove >= $2.0M
+
+    // Reject unauthorized caller probing lower bounds
+    await expect(
+      sim.proveSolvency(200_000_000n, { operatorSecretKey: bytes32FromLabel("unauth:prober") })
+    ).rejects.toThrow(/Unauthorized treasury operator/);
+
+    // Restore valid operator key and prove >= $2.0M
+    const attestation = await sim.proveSolvency(200_000_000n, { operatorSecretKey: operatorSk });
     expect(attestation).toBeInstanceOf(Uint8Array);
     expect(attestation.length).toBe(32);
 
-    // Rejects claiming a floor above actual private balance ($2.45M)
+    const state = sim.getLedger();
+    expect(runtime.toHex(state.lastSolvencyAttestation)).toBe(runtime.toHex(attestation));
+    expect(state.lastSolvencyFloor).toBe(200_000_000n);
+    expect(state.lastSolvencyEpoch).toBe(1n);
+
+    // Reject false floor above actual private balance
     await expect(sim.proveSolvency(300_000_000n)).rejects.toThrow(
       /Treasury below requested solvency floor/
     );
   });
 
-  it("settles a confidential invoice atomically, re-blinds balance, records nullifier, and verifies receipt on-chain", async () => {
+  it("settles confidentially with secret-keyed nullifier and jurisdiction-bound commitment", async () => {
     const sim = await bootVault();
-    const pathCH = sim.getLedger().approvedJurisdictions.findPathForLeaf(isoCH);
-    expect(pathCH).toBeDefined();
+    const pathCH = sim.getLedger().approvedJurisdictions.findPathForLeaf(isoCH)!;
 
     const vendorId = bytes32FromLabel("vendor:ch:halcyon-security-ag");
     const lineItemsHash = bytes32FromLabel("inv:2026-051:zk-formal-audit");
     const invSalt = bytes32FromLabel("inv:salt:051");
     const nextSalt = bytes32FromLabel("treasury:salt:1");
-    const amount = 4_250_000n; // $42,500
-    const cap = 5_000_000n; // $50,000 tier
+    const amount = 4_250_000n;
+    const cap = 5_000_000n;
 
     const receiptId = await sim.settleInvoice(cap, DisclosureTier.AuditorScoped, {
       invoiceVendorId: vendorId,
@@ -268,11 +292,10 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
       invoiceAmount: amount,
       invoiceSalt: invSalt,
       jurisdictionLeaf: isoCH,
-      jurisdictionMerklePath: pathCH!,
+      jurisdictionMerklePath: pathCH,
       nextTreasuryBlindingFactor: nextSalt
     });
 
-    // Update local private treasury balance after successful settlement
     sim.privateState = {
       ...sim.privateState,
       treasurySecretBalance: 245_000_000n - amount,
@@ -284,11 +307,13 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
     expect(await sim.verifyReceipt(receiptId)).toBe(true);
 
     const receipt = updatedLedger.auditReceipts.lookup(receiptId);
-    const expectedNullifier = pureCircuits.deriveNullifier(vendorId, lineItemsHash);
+    const nullifierSalt = pureCircuits.deriveNullifierBlindingSalt(operatorSk);
+    const expectedNullifier = pureCircuits.deriveNullifier(nullifierSalt, vendorId, lineItemsHash);
     const expectedInvCommit = pureCircuits.deriveInvoiceCommitment(
       vendorId,
       lineItemsHash,
       amount,
+      isoCH,
       invSalt
     );
 
@@ -298,33 +323,127 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
     expect(receipt.disclosureTier).toBe(DisclosureTier.AuditorScoped);
     expect(receipt.settledEpoch).toBe(1n);
     expect(updatedLedger.usedInvoiceNullifiers.member(expectedNullifier)).toBe(true);
-    // AuditorScoped must emit a non-zero scoped auditorTag
     expect(receipt.auditorTag.some((b) => b !== 0)).toBe(true);
 
-    // Confirm post-settlement solvency proof works with the new re-blinded balance commitment
+    // Confirm secret blinding salt prevents dictionary guessing and cross-vault linkability
+    const wrongVaultSalt = pureCircuits.deriveNullifierBlindingSalt(bytes32FromLabel("other:treasury:sk"));
+    const guessedNullifier = pureCircuits.deriveNullifier(wrongVaultSalt, vendorId, lineItemsHash);
+    expect(runtime.toHex(guessedNullifier)).not.toBe(runtime.toHex(expectedNullifier));
+    expect(updatedLedger.usedInvoiceNullifiers.member(guessedNullifier)).toBe(false);
+
+    // Confirm jurisdictionLeaf is cryptographically bound into invoiceCommitment
+    const wrongLeafCommit = pureCircuits.deriveInvoiceCommitment(
+      vendorId,
+      lineItemsHash,
+      amount,
+      isoSG,
+      invSalt
+    );
+    expect(runtime.toHex(wrongLeafCommit)).not.toBe(runtime.toHex(receipt.invoiceCommitment));
+
     const postSolvency = await sim.proveSolvency(240_000_000n);
     expect(postSolvency.length).toBe(32);
   });
 
-  it("zeroes auditorTag under MinimalSolvency disclosure tier", async () => {
+  it("enforces distinct MinimalSolvency, ThresholdBand, and AuditorScoped disclosure tier rules", async () => {
     const sim = await bootVault();
     const pathSG = sim.getLedger().approvedJurisdictions.findPathForLeaf(isoSG)!;
-    const receiptId = await sim.settleInvoice(3_000_000n, DisclosureTier.MinimalSolvency, {
-      invoiceVendorId: bytes32FromLabel("vendor:sg:kestrel"),
-      invoiceLineItemsHash: bytes32FromLabel("inv:2026-052:milestone"),
+
+    // 1. MinimalSolvency rejects narrow custom cap (< $150k ceiling)
+    await expect(
+      sim.settleInvoice(3_000_000n, DisclosureTier.MinimalSolvency, {
+        invoiceVendorId: bytes32FromLabel("vendor:sg:min-bad"),
+        invoiceLineItemsHash: bytes32FromLabel("inv:min-bad"),
+        invoiceAmount: 2_400_000n,
+        invoiceSalt: bytes32FromLabel("inv:salt:min-bad"),
+        jurisdictionLeaf: isoSG,
+        jurisdictionMerklePath: pathSG,
+        nextTreasuryBlindingFactor: bytes32FromLabel("treasury:salt:min-bad")
+      })
+    ).rejects.toThrow(/MinimalSolvency tier must use full governance ceiling/);
+
+    // 2. MinimalSolvency succeeds at full governance ceiling ($150k) with zeroed auditorTag
+    const salt1 = bytes32FromLabel("treasury:salt:min-ok");
+    const minReceiptId = await sim.settleInvoice(15_000_000n, DisclosureTier.MinimalSolvency, {
+      invoiceVendorId: bytes32FromLabel("vendor:sg:min-ok"),
+      invoiceLineItemsHash: bytes32FromLabel("inv:min-ok"),
       invoiceAmount: 2_400_000n,
-      invoiceSalt: bytes32FromLabel("inv:salt:052"),
+      invoiceSalt: bytes32FromLabel("inv:salt:min-ok"),
       jurisdictionLeaf: isoSG,
       jurisdictionMerklePath: pathSG,
-      nextTreasuryBlindingFactor: bytes32FromLabel("treasury:salt:minimal")
+      nextTreasuryBlindingFactor: salt1
     });
+    const minReceipt = sim.getLedger().auditReceipts.lookup(minReceiptId);
+    expect(minReceipt.disclosureTier).toBe(DisclosureTier.MinimalSolvency);
+    expect(minReceipt.budgetTierCap).toBe(15_000_000n);
+    expect(minReceipt.auditorTag.every((b) => b === 0)).toBe(true);
 
-    const receipt = sim.getLedger().auditReceipts.lookup(receiptId);
-    expect(receipt.disclosureTier).toBe(DisclosureTier.MinimalSolvency);
-    expect(receipt.auditorTag.every((b) => b === 0)).toBe(true);
+    sim.privateState = {
+      ...sim.privateState,
+      treasurySecretBalance: 245_000_000n - 2_400_000n,
+      treasuryBlindingFactor: salt1
+    };
+
+    // 3. ThresholdBand rejects full governance ceiling (must be strictly below ceiling)
+    await expect(
+      sim.settleInvoice(15_000_000n, DisclosureTier.ThresholdBand, {
+        invoiceVendorId: bytes32FromLabel("vendor:sg:band-bad"),
+        invoiceLineItemsHash: bytes32FromLabel("inv:band-bad"),
+        invoiceAmount: 2_400_000n,
+        invoiceSalt: bytes32FromLabel("inv:salt:band-bad"),
+        jurisdictionLeaf: isoSG,
+        jurisdictionMerklePath: pathSG,
+        nextTreasuryBlindingFactor: bytes32FromLabel("treasury:salt:band-bad")
+      })
+    ).rejects.toThrow(/ThresholdBand cap must be strictly below governance ceiling/);
+
+    // 4. AuditorScoped rejects unregistered / arbitrary auditor viewing key hash
+    await expect(
+      sim.settleInvoice(5_000_000n, DisclosureTier.AuditorScoped, {
+        invoiceVendorId: bytes32FromLabel("vendor:sg:aud-bad"),
+        invoiceLineItemsHash: bytes32FromLabel("inv:aud-bad"),
+        invoiceAmount: 2_400_000n,
+        invoiceSalt: bytes32FromLabel("inv:salt:aud-bad"),
+        jurisdictionLeaf: isoSG,
+        jurisdictionMerklePath: pathSG,
+        auditorViewingKeyHash: bytes32FromLabel("rogue:unregistered:auditor"),
+        nextTreasuryBlindingFactor: bytes32FromLabel("treasury:salt:aud-bad")
+      })
+    ).rejects.toThrow(/Auditor viewing key is not authorized for this vault/);
   });
 
-  it("blocks double-settlement replay attacks via usedInvoiceNullifiers", async () => {
+  it("enforces strict cap > amount (rejects exact amount == budgetTierCap) and fresh blinding salt", async () => {
+    const sim = await bootVault();
+    const pathCH = sim.getLedger().approvedJurisdictions.findPathForLeaf(isoCH)!;
+
+    // 1. Strict cap > amount: amount == budgetTierCap must fail
+    await expect(
+      sim.settleInvoice(5_000_000n, DisclosureTier.ThresholdBand, {
+        invoiceVendorId: bytes32FromLabel("vendor:ch:eq-cap"),
+        invoiceLineItemsHash: bytes32FromLabel("inv:eq-cap"),
+        invoiceAmount: 5_000_000n,
+        invoiceSalt: bytes32FromLabel("inv:salt:eq-cap"),
+        jurisdictionLeaf: isoCH,
+        jurisdictionMerklePath: pathCH,
+        nextTreasuryBlindingFactor: bytes32FromLabel("treasury:salt:eq-cap")
+      })
+    ).rejects.toThrow(/Invoice must be strictly below declared budget tier cap/);
+
+    // 2. Reusing current treasuryBlindingFactor as nextTreasuryBlindingFactor must fail
+    await expect(
+      sim.settleInvoice(5_000_000n, DisclosureTier.ThresholdBand, {
+        invoiceVendorId: bytes32FromLabel("vendor:ch:reuse-salt"),
+        invoiceLineItemsHash: bytes32FromLabel("inv:reuse-salt"),
+        invoiceAmount: 2_000_000n,
+        invoiceSalt: bytes32FromLabel("inv:salt:reuse-salt"),
+        jurisdictionLeaf: isoCH,
+        jurisdictionMerklePath: pathCH,
+        nextTreasuryBlindingFactor: initialSalt
+      })
+    ).rejects.toThrow(/Next treasury blinding factor must be fresh/);
+  });
+
+  it("blocks double-settlement replay attacks via secret-keyed usedInvoiceNullifiers", async () => {
     const sim = await bootVault();
     const pathCH = sim.getLedger().approvedJurisdictions.findPathForLeaf(isoCH)!;
     const vendorId = bytes32FromLabel("vendor:ch:replay-target");
@@ -341,7 +460,6 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
       nextTreasuryBlindingFactor: nextSalt
     });
 
-    // Advance private balance & salt, then attempt to replay exact same invoice with fresh salt
     sim.privateState = {
       ...sim.privateState,
       treasurySecretBalance: 245_000_000n - 1_500_000n,
@@ -361,10 +479,12 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
     ).rejects.toThrow(/Invoice nullifier already spent/);
   });
 
-  it("blocks sanctioned / unlisted jurisdictions via HistoricMerkleTree root verification", async () => {
+  it("blocks sanctioned jurisdictions and witness leaf-swap attacks (KP leaf vs CH path)", async () => {
     const sim = await bootVault();
+    const pathCH = sim.getLedger().approvedJurisdictions.findPathForLeaf(isoCH)!;
     const forgedPath = emptyMerklePath(isoKP);
 
+    // 1. Unlisted KP leaf + forged empty path
     await expect(
       sim.settleInvoice(5_000_000n, DisclosureTier.AuditorScoped, {
         invoiceVendorId: bytes32FromLabel("vendor:kp:sanctioned"),
@@ -376,6 +496,19 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
         nextTreasuryBlindingFactor: bytes32FromLabel("treasury:salt:blocked")
       })
     ).rejects.toThrow(/Jurisdiction is not in the approved compliance Merkle tree/);
+
+    // 2. Witness leaf-swap: KP leaf witness paired with valid CH Merkle path
+    await expect(
+      sim.settleInvoice(5_000_000n, DisclosureTier.AuditorScoped, {
+        invoiceVendorId: bytes32FromLabel("vendor:kp:leaf-swap"),
+        invoiceLineItemsHash: bytes32FromLabel("inv:2026-902:leaf-swap"),
+        invoiceAmount: 1_000_000n,
+        invoiceSalt: bytes32FromLabel("inv:salt:swap"),
+        jurisdictionLeaf: isoKP,
+        jurisdictionMerklePath: pathCH,
+        nextTreasuryBlindingFactor: bytes32FromLabel("treasury:salt:swap")
+      })
+    ).rejects.toThrow(/Jurisdiction leaf does not match Merkle path/);
   });
 
   it("blocks unauthorized operators, cap violations, reserve floor breaches, and paused vaults", async () => {
@@ -395,7 +528,6 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
       })
     ).rejects.toThrow(/Unauthorized treasury operator/);
 
-    // Restore valid operator key
     sim.privateState = { ...sim.privateState, operatorSecretKey: operatorSk };
 
     // 2. Invoice exceeds declared budget tier cap
@@ -407,7 +539,7 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
         jurisdictionLeaf: isoCH,
         jurisdictionMerklePath: pathCH
       })
-    ).rejects.toThrow(/Invoice exceeds declared budget tier cap/);
+    ).rejects.toThrow(/Invoice must be strictly below declared budget tier cap/);
 
     // 3. Budget cap exceeds governance ceiling ($150,000)
     await expect(
@@ -448,16 +580,17 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
     ).rejects.toThrow(/Settlement breaches minimum reserve floor/);
   });
 
-  it("audits on-chain serialized ContractState to verify zero private witness leakage", async () => {
+  it("audits serialized ContractState bytes for zero witness, exact amount, and dictionary leakage", async () => {
     const sim = await bootVault();
     const pathCH = sim.getLedger().approvedJurisdictions.findPathForLeaf(isoCH)!;
     const secretVendor = bytes32FromLabel("SECRET_VENDOR_ACME_ZURICH");
-    const secretLineItems = bytes32FromLabel("SECRET_SCOPE_42500_USD");
+    const secretLineItems = bytes32FromLabel("SECRET_SCOPE_UNIQUE_987");
+    const uniqueAmount = 4_251_337n; // 0x40df39 -> distinct non-round byte pattern
 
     await sim.settleInvoice(5_000_000n, DisclosureTier.AuditorScoped, {
       invoiceVendorId: secretVendor,
       invoiceLineItemsHash: secretLineItems,
-      invoiceAmount: 4_250_000n,
+      invoiceAmount: uniqueAmount,
       invoiceSalt: bytes32FromLabel("inv:salt:privacy-check"),
       jurisdictionLeaf: isoCH,
       jurisdictionMerklePath: pathCH,
@@ -465,9 +598,18 @@ describe("Compiled Compact 0.28.0 Contract (proofvault.compact via @midnight-ntw
     });
 
     const serializedPublicHex = runtime.toHex(sim.contractState.serialize());
+    const nullifierSalt = pureCircuits.deriveNullifierBlindingSalt(operatorSk);
+    // Big-endian and little-endian hex encodings of uniqueAmount (0x40df39)
+    const amtBeHex = uniqueAmount.toString(16).padStart(8, "0"); // 0040df39
+    const amtLeHex = "39df4000";
+
     expect(serializedPublicHex).not.toContain(runtime.toHex(operatorSk));
+    expect(serializedPublicHex).not.toContain(runtime.toHex(nullifierSalt));
+    expect(serializedPublicHex).not.toContain(runtime.toHex(auditorVkHash));
     expect(serializedPublicHex).not.toContain(runtime.toHex(secretVendor));
     expect(serializedPublicHex).not.toContain(runtime.toHex(secretLineItems));
     expect(serializedPublicHex).not.toContain(runtime.toHex(initialSalt));
+    expect(serializedPublicHex).not.toContain(amtBeHex);
+    expect(serializedPublicHex).not.toContain(amtLeHex);
   });
 });

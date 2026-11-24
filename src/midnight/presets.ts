@@ -25,22 +25,22 @@ export const DEFAULT_AUDITOR_VIEWING_KEY = deriveDeterministicSaltHex("proofvaul
 export function createSeededProofVaultEngine(): ProofVaultEngine {
   const engine = new ProofVaultEngine({
     operatorSecretKeyHex: DEFAULT_OPERATOR_SECRET_KEY,
-    initialTreasuryBalanceCents: 245_000_000, // $2,450,000.00
+    initialTreasuryBalanceCents: 245_000_000, // Local simulator fixture balance
     initialBlindingFactorHex: DEFAULT_INITIAL_BLINDING_SALT,
     auditorViewingKeyHex: DEFAULT_AUDITOR_VIEWING_KEY,
-    maxSingleSettlementCents: 15_000_000, // $150,000.00 max single invoice
-    minReserveFloorCents: 50_000_000, // $500,000.00 min solvency reserve
+    maxSingleSettlementCents: 15_000_000, // $150,000.00 public governance ceiling
+    minReserveFloorCents: 50_000_000, // $500,000.00 public solvency reserve floor
     initialJurisdictions: DEFAULT_JURISDICTIONS
   });
 
-  // Seed two initial confidential settlements so Ledger & Audit views are rich immediately
+  // Seed two initial simulator settlements so Audit Portal & Breaker Lab replay tests work immediately
   engine.settleConfidentialInvoice({
     vendorLabel: "Helvetia Formal Verification GmbH",
     vendorIdRaw: "vendor:ch:helvetia-fv-01",
-    lineItemsSummary: "Compact ZK circuit soundness review + ZKIR constraint audit (120 hrs)",
+    lineItemsSummary: "Compact circuit soundness review + ZKIR constraint audit (120 hrs)",
     invoiceReference: "INV-2026-041",
-    amountCents: 38_500_00, // $38,500.00
-    budgetTierCapCents: 50_000_00, // $50,000.00 tier
+    amountCents: 38_500_00,
+    budgetTierCapCents: 50_000_00,
     jurisdictionCode: "CH",
     disclosureTier: DisclosureTier.AuditorScoped
   });
@@ -48,10 +48,10 @@ export function createSeededProofVaultEngine(): ProofVaultEngine {
   engine.settleConfidentialInvoice({
     vendorLabel: "Meridian RPC Infrastructure Pte Ltd",
     vendorIdRaw: "vendor:sg:meridian-rpc-09",
-    lineItemsSummary: "Midnight Preprod Indexer + Prover GPU cluster hosting Q4",
+    lineItemsSummary: "Midnight Indexer + Prover GPU cluster hosting Q4",
     invoiceReference: "INV-2026-042",
-    amountCents: 19_200_00, // $19,200.00
-    budgetTierCapCents: 25_000_00, // $25,000.00 tier
+    amountCents: 19_200_00,
+    budgetTierCapCents: 25_000_00,
     jurisdictionCode: "SG",
     disclosureTier: DisclosureTier.ThresholdBand
   });
@@ -65,11 +65,12 @@ export const SETTLEMENT_PRESETS: VaultPresetScenario[] = [
     label: "ZK Security Audit Bounty (CH)",
     category: "valid",
     badge: "PASS · AUDITOR SCOPED",
-    description: "Pays $42,500 confidentially under a $50,000 DAO tier cap to a Zurich auditor with an auditor-scoped receipt.",
+    description:
+      "Settles a Zurich security audit strictly below a $50,000 cap with an authorized AuditorScoped tag and bound CH leaf.",
     input: {
       vendorLabel: "Halcyon Security AG",
       vendorIdRaw: "vendor:ch:halcyon-sec-88",
-      lineItemsSummary: "Critical ZK witness isolation audit & formal proof verification",
+      lineItemsSummary: "Critical witness isolation audit & formal proof verification",
       invoiceReference: "INV-2026-051",
       amountCents: 42_500_00,
       budgetTierCapCents: 50_000_00,
@@ -82,11 +83,12 @@ export const SETTLEMENT_PRESETS: VaultPresetScenario[] = [
     label: "Protocol Engineering Milestone (SG)",
     category: "valid",
     badge: "PASS · THRESHOLD BAND",
-    description: "Settles $88,000 milestone under $100,000 cap in Singapore without binding an auditor key.",
+    description:
+      "Settles a Singapore engineering milestone strictly below a $100,000 ThresholdBand (< $150k ceiling) with zero auditor tag.",
     input: {
       vendorLabel: "Kestrel Systems Pte Ltd",
       vendorIdRaw: "vendor:sg:kestrel-eng-14",
-      lineItemsSummary: "Midnight.js SDK integration & browser prover pipeline Milestone 3",
+      lineItemsSummary: "Midnight.js SDK integration & prover pipeline Milestone 3",
       invoiceReference: "INV-2026-052",
       amountCents: 88_000_00,
       budgetTierCapCents: 100_000_00,
@@ -99,14 +101,15 @@ export const SETTLEMENT_PRESETS: VaultPresetScenario[] = [
     label: "Regulatory Counsel Retainer (US)",
     category: "valid",
     badge: "PASS · MINIMAL SOLVENCY",
-    description: "Minimal disclosure proof ($24,000 under $30,000 cap) proving non-sanctioned eligibility and solvency only.",
+    description:
+      "MinimalSolvency tier locks the public cap to the full $150,000 governance ceiling, hiding both the exact payout and spend band.",
     input: {
       vendorLabel: "Alder & Vance LLP",
       vendorIdRaw: "vendor:us:alder-vance-03",
       lineItemsSummary: "Q4 MiCA & US Treasury compliance advisory",
       invoiceReference: "INV-2026-053",
       amountCents: 24_000_00,
-      budgetTierCapCents: 30_000_00,
+      budgetTierCapCents: 150_000_00,
       jurisdictionCode: "US",
       disclosureTier: DisclosureTier.MinimalSolvency
     }
@@ -116,7 +119,8 @@ export const SETTLEMENT_PRESETS: VaultPresetScenario[] = [
     label: "Sanctioned Jurisdiction Test (KP)",
     category: "guard-test",
     badge: "BLOCKED · MERKLE GUARD",
-    description: "Attempts settlement to an unlisted / sanctioned jurisdiction (KP). Rejected by HistoricMerkleTree.checkRoot().",
+    description:
+      "Attempts settlement to an unlisted jurisdiction (KP). Rejected by HistoricMerkleTree.checkRoot() with zero state mutation.",
     input: {
       vendorLabel: "Unverified Offshore Entity",
       vendorIdRaw: "vendor:kp:blocked-entity-77",
@@ -132,12 +136,13 @@ export const SETTLEMENT_PRESETS: VaultPresetScenario[] = [
     id: "over-cap-breach",
     label: "Budget Ceiling Breach Test",
     category: "guard-test",
-    badge: "BLOCKED · SOLVENCY GUARD",
-    description: "Attempts a $175,000 settlement exceeding the $150,000 public DAO governance ceiling.",
+    badge: "BLOCKED · CAP GUARD",
+    description:
+      "Attempts a settlement above the $150,000 public governance ceiling. Rejected before any commitment update.",
     input: {
       vendorLabel: "Apex Market Makers Ltd",
       vendorIdRaw: "vendor:gb:apex-mm-22",
-      lineItemsSummary: "Unauthorized liquidity retainer exceeding governance cap",
+      lineItemsSummary: "Unauthorized liquidity retainer exceeding governance ceiling",
       invoiceReference: "INV-2026-902",
       amountCents: 175_000_00,
       budgetTierCapCents: 180_000_00,
@@ -150,11 +155,12 @@ export const SETTLEMENT_PRESETS: VaultPresetScenario[] = [
     label: "Double-Settlement Replay Test",
     category: "guard-test",
     badge: "BLOCKED · NULLIFIER GUARD",
-    description: "Replays already-settled invoice INV-2026-041. Blocked deterministically by usedInvoiceNullifiers.member().",
+    description:
+      "Replays already-settled invoice INV-2026-041. Blocked deterministically by the secret-keyed usedInvoiceNullifiers Set.",
     input: {
       vendorLabel: "Helvetia Formal Verification GmbH",
       vendorIdRaw: "vendor:ch:helvetia-fv-01",
-      lineItemsSummary: "Compact ZK circuit soundness review + ZKIR constraint audit (120 hrs)",
+      lineItemsSummary: "Compact circuit soundness review + ZKIR constraint audit (120 hrs)",
       invoiceReference: "INV-2026-041",
       amountCents: 38_500_00,
       budgetTierCapCents: 50_000_00,

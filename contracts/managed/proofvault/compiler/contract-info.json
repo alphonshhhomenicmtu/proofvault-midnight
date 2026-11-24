@@ -23,10 +23,53 @@
       }
     },
     {
+      "name": "deriveAuditorCommitment",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "auditorVkHash",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "deriveNullifierBlindingSalt",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "sk",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
       "name": "deriveNullifier",
       "pure": true,
       "proof": false,
       "arguments": [
+        {
+          "name": "nullifierSalt",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
         {
           "name": "vendorId",
           "type": {
@@ -71,6 +114,13 @@
           "type": {
             "type-name": "Uint",
             "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "jurisdictionLeafDigest",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
           }
         },
         {
@@ -366,7 +416,7 @@
       }
     },
     {
-      "name": "treasuryBalanceCommitment",
+      "name": "authorizedAuditorCommitment",
       "index": 1,
       "exported": true,
       "storage": "Cell",
@@ -376,17 +426,17 @@
       }
     },
     {
-      "name": "policyMaxSingleSettlement",
+      "name": "treasuryBalanceCommitment",
       "index": 2,
       "exported": true,
       "storage": "Cell",
       "type": {
-        "type-name": "Uint",
-        "maxval": 18446744073709551615
+        "type-name": "Bytes",
+        "length": 32
       }
     },
     {
-      "name": "policyMinReserveFloor",
+      "name": "policyMaxSingleSettlement",
       "index": 3,
       "exported": true,
       "storage": "Cell",
@@ -396,7 +446,7 @@
       }
     },
     {
-      "name": "currentEpoch",
+      "name": "policyMinReserveFloor",
       "index": 4,
       "exported": true,
       "storage": "Cell",
@@ -406,8 +456,18 @@
       }
     },
     {
-      "name": "vaultStatus",
+      "name": "currentEpoch",
       "index": 5,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    },
+    {
+      "name": "vaultStatus",
+      "index": 6,
       "exported": true,
       "storage": "Cell",
       "type": {
@@ -420,8 +480,38 @@
       }
     },
     {
+      "name": "lastSolvencyAttestation",
+      "index": 7,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "lastSolvencyFloor",
+      "index": 8,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    },
+    {
+      "name": "lastSolvencyEpoch",
+      "index": 9,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    },
+    {
       "name": "approvedJurisdictions",
-      "index": 6,
+      "index": 10,
       "exported": true,
       "storage": "HistoricMerkleTree",
       "depth": 8,
@@ -432,7 +522,7 @@
     },
     {
       "name": "usedInvoiceNullifiers",
-      "index": 7,
+      "index": 11,
       "exported": true,
       "storage": "Set",
       "type": {
@@ -442,7 +532,7 @@
     },
     {
       "name": "auditReceipts",
-      "index": 8,
+      "index": 12,
       "exported": true,
       "storage": "Map",
       "key": {
@@ -512,7 +602,7 @@
     },
     {
       "name": "settledInvoiceCount",
-      "index": 9,
+      "index": 13,
       "exported": true,
       "storage": "Counter"
     }

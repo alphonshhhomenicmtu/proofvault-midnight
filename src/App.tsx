@@ -3,6 +3,7 @@ import type { ConnectedAPI } from "@midnight-ntwrk/dapp-connector-api";
 import {
   Code2,
   FileCheck2,
+  Flame,
   Layers,
   RotateCcw,
   Send,
@@ -11,12 +12,18 @@ import {
 } from "lucide-react";
 import { createSeededProofVaultEngine } from "./midnight/presets";
 import {
+  executeAdversarialAttack,
+  executeAllAdversarialAttacks
+} from "./midnight/adversarialLab";
+import {
   connectMidnightWallet,
   createDefaultWalletState,
   discoverMidnightWallets,
   dispatchWalletTransaction
 } from "./midnight/walletAdapter";
 import type {
+  AdversarialAttackId,
+  AdversarialAttackReport,
   InvoiceSettlementInput,
   InvoiceSettlementResult,
   MidnightNetworkId,
@@ -26,10 +33,11 @@ import type {
 } from "./midnight/types";
 import { OverviewTab } from "./components/OverviewTab";
 import { SettleTab } from "./components/SettleTab";
+import { BreakerLabTab } from "./components/BreakerLabTab";
 import { AuditTab } from "./components/AuditTab";
 import { CompactSpecTab } from "./components/CompactSpecTab";
 
-type ActiveTab = "overview" | "settle" | "audit" | "spec";
+export type ActiveTab = "overview" | "settle" | "breaker" | "audit" | "spec";
 
 export function App() {
   const engineRef = useRef(createSeededProofVaultEngine());
@@ -40,6 +48,7 @@ export function App() {
     engineRef.current.proveTreasurySolvency(200_000_000)
   );
   const [lastSettlement, setLastSettlement] = useState<InvoiceSettlementResult | null>(null);
+  const [breakerReports, setBreakerReports] = useState<Record<string, AdversarialAttackReport>>({});
   const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null);
   const [walletState, setWalletState] = useState<WalletConnectionState>(() =>
     createDefaultWalletState()
@@ -55,10 +64,14 @@ export function App() {
 
   const bump = useCallback(() => setRevision((n) => n + 1), []);
 
-  const handleProveSolvency = useCallback((claimedMinFloorCents: number) => {
-    const result = engineRef.current.proveTreasurySolvency(claimedMinFloorCents);
-    setLastSolvency(result);
-  }, []);
+  const handleProveSolvency = useCallback(
+    (claimedMinFloorCents: number) => {
+      const result = engineRef.current.proveTreasurySolvency(claimedMinFloorCents);
+      setLastSolvency(result);
+      if (result.ok) bump();
+    },
+    [bump]
+  );
 
   const handleSettle = useCallback(
     (input: InvoiceSettlementInput) => {
@@ -71,6 +84,22 @@ export function App() {
     },
     [bump]
   );
+
+  const handleRunAttack = useCallback((attackId: AdversarialAttackId) => {
+    const report = executeAdversarialAttack(engineRef.current, attackId);
+    setBreakerReports((prev) => ({ ...prev, [attackId]: report }));
+    return report;
+  }, []);
+
+  const handleRunAllAttacks = useCallback(() => {
+    const all = executeAllAdversarialAttacks(engineRef.current);
+    const map: Record<string, AdversarialAttackReport> = {};
+    for (const r of all) {
+      map[r.attackId] = r;
+    }
+    setBreakerReports(map);
+    return all;
+  }, []);
 
   const handleDispatchLastSettlement = useCallback(async () => {
     if (!lastSettlement?.ok || !lastSettlement.receipt || !connectedApiRef.current) {
@@ -113,6 +142,7 @@ export function App() {
   const handleResetDemo = useCallback(() => {
     engineRef.current = createSeededProofVaultEngine();
     setLastSettlement(null);
+    setBreakerReports({});
     setSelectedReceiptId(null);
     setLastSolvency(engineRef.current.proveTreasurySolvency(200_000_000));
     bump();
@@ -146,9 +176,9 @@ export function App() {
             <div>
               <div className="brand-title">
                 <span>ProofVault</span>
-                <span className="badge cyan">MIDNIGHT ZK</span>
+                <span className="badge cyan">v2.1</span>
               </div>
-              <div className="brand-sub">ZK Selective-Disclosure Treasury</div>
+              <div className="brand-sub">Midnight ZK Treasury</div>
             </div>
           </div>
 
@@ -168,6 +198,14 @@ export function App() {
             >
               <Send size={14} />
               Settle Invoice
+            </button>
+            <button
+              type="button"
+              className={`nav-tab ${activeTab === "breaker" ? "active" : ""}`}
+              onClick={() => setActiveTab("breaker")}
+            >
+              <Flame size={14} color={activeTab === "breaker" ? "#fb7185" : undefined} />
+              Breaker Lab
             </button>
             <button
               type="button"
@@ -191,7 +229,7 @@ export function App() {
             <select
               aria-label="Midnight network"
               className="select mono"
-              style={{ width: 112, padding: "6px 9px", fontSize: 12 }}
+              style={{ width: 102, padding: "6px 8px", fontSize: 12 }}
               value={networkId}
               onChange={(e) => setNetworkId(e.target.value as MidnightNetworkId)}
             >
@@ -205,7 +243,7 @@ export function App() {
               <span className="dot" />
               {walletState.walletConnected
                 ? `${walletState.walletName} (${walletState.networkId})`
-                : "Local Proof Engine"}
+                : "SHA-256 Simulator"}
             </span>
 
             <button
@@ -218,15 +256,15 @@ export function App() {
               {connectingWallet
                 ? "Connecting..."
                 : walletState.walletConnected
-                  ? "Reconnect Wallet"
-                  : "Connect Lace / 1AM"}
+                  ? "Reconnect"
+                  : "Connect Lace"}
             </button>
 
             <button
               type="button"
               className="btn sm ghost"
               onClick={handleResetDemo}
-              title="Reset local vault state to seeded demo"
+              title="Reset local simulator vault state"
             >
               <RotateCcw size={13} />
             </button>
@@ -235,6 +273,13 @@ export function App() {
       </header>
 
       <main className="main-content">
+        <div className="runtime-clarity-bar">
+          <div>
+            <strong style={{ color: "#38bdf8" }}>Browser Mode:</strong> SHA-256 Deterministic Circuit Simulator (zero-setup browser sandbox modeling all 24 v2.1 guards).{" "}
+            <strong style={{ color: "#34d399" }}>Real Midnight Compact 0.28.0 Circuit:</strong> compiled with <span className="mono">compactc 0.36.1</span> (<span className="mono">persistentCommit</span> / <span className="mono">zkir-3.2.1</span>), tested via <span className="mono">npm test</span>, and live on Midnight Preview (<span className="mono">0x9ae57d40...4228bc8</span>, 6/6 txs).
+          </div>
+        </div>
+
         {walletState.error && (
           <div className="wallet-banner warn">
             <span>{walletState.error}</span>
@@ -285,6 +330,15 @@ export function App() {
           />
         )}
 
+        {activeTab === "breaker" && (
+          <BreakerLabTab
+            ledger={ledger}
+            reports={breakerReports}
+            onRunAttack={handleRunAttack}
+            onRunAllAttacks={handleRunAllAttacks}
+          />
+        )}
+
         {activeTab === "audit" && (
           <AuditTab
             ledger={ledger}
@@ -305,7 +359,7 @@ export function App() {
       </main>
 
       <footer className="footer">
-        ProofVault · Built for Midnight Network (Compact 0.28.0 / compactc 0.36.1 / Ledger 9) · Live Preview Indexer GraphQL v4 · Licensed under Apache-2.0
+        ProofVault v2.1 · Midnight Network (Compact 0.28.0 / compactc 0.36.1 / Ledger 9) · Browser SHA-256 Simulator + Live Preview Indexer GraphQL v4 · Apache-2.0
       </footer>
     </div>
   );

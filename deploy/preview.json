@@ -11,7 +11,7 @@
     "proofServerVersion": "9.0.2"
   },
   "status": "deployed-and-verified-live",
-  "statusNote": "ProofVault is deployed LIVE on Midnight Preview (Ledger 9, protocolVersion 2001100) with 6 confirmed SucceedEntirely transactions covering ContractDeploy, two HistoricMerkleTree jurisdiction registrations (CH, SG), a zero-knowledge treasury solvency attestation, a confidential AuditorScoped invoice settlement, and an on-chain receipt membership proof. Verify walletlessly anytime via `npm run verify:onchain` or the Audit Portal on GitHub Pages.",
+  "statusNote": "Live Midnight Preview contract 0x9ae57d40331df50a9a30340d2f2a612f7e6cf8fa99112d11e630c7b3f4228bc8 runs ProofVault v2.0 (Ledger 9, protocolVersion 2001100) with 6 confirmed SucceedEntirely transactions across blocks #250,802–#250,861 (2 registered jurisdiction leaves: iso:CH, iso:SG). Hardened ProofVault v2.1 circuit (secret-keyed nullifiers, jurisdiction-bound commitments, strict cap > amount, distinct MinimalSolvency/ThresholdBand/AuditorScoped tier constraints, registered auditor authorization, authenticated persisted solvency state, fresh blinding salt) is compiled under compactc 0.36.1 and verified via @midnight-ntwrk/compact-runtime@0.21.0 in npm test (62/62 tests, 24/24 compiled JS guard mutants killed).",
   "endpoints": {
     "indexerGraphql": "https://indexer.preview.midnight.network/api/v4/graphql",
     "indexerWs": "wss://indexer.preview.midnight.network/api/v4/graphql/ws",
@@ -21,14 +21,58 @@
     "proofServerDefault": "http://127.0.0.1:6300"
   },
   "verifiedLiveChainHead": {
-    "verifiedAtIso": "2026-11-24T11:59:29.000Z",
-    "blockHeight": 250861,
-    "blockHash": "a7f34d8b7ae54a74ae00e9a13f731281b0d0c9c7f6c24787823289a06a692c72",
+    "verifiedAtIso": "2026-11-24T13:13:42.001Z",
+    "blockHeight": 251597,
+    "blockHash": "ffa4a91ed5145039a61eabbdf7052c01bd8fea53aa4186db8c0c2b2f058a3000",
     "protocolVersion": 2001100,
-    "zswapMerkleTreeRoot": "73622209374e5aef54c02181df486225536320c84d983754a1ce9358d0e9aa186a",
+    "zswapMerkleTreeRoot": "7375b3dc2551b1c66b508140c073cceba5ca91ec352bb0c21f43ccb4e21035a33c",
     "corsPublicAccess": true
   },
+  "compiledV21Artifacts": {
+    "version": "2.1.0",
+    "sourceSha256": "fc0ac33e60d3c69769b9d501a5a5eee178fcd49ed44360675b87a852625f4a2a",
+    "contractJsSha256": "b32e86c309610e9fd16804a2fdd1465b22218b24790acf17ab0baea83f3e46fc",
+    "auditedAssertGuards": 24,
+    "circuits": {
+      "settleConfidentialInvoice": {
+        "zkirBytes": 24040,
+        "bzkirBytes": 7445,
+        "zkirSha256": "b337adfc8b8362928c107df98893bcf6c70e9114d4a0fae205732fac1ebec295",
+        "bzkirSha256": "8c136566281cfa906022bb5720d52beb0304edfd93497c6ccd8ae15fa02672ca",
+        "verifierSha256": "5f2631855ea13ba5cd300be061d423b099393dd19fcb8c67ba53b021666bf017"
+      },
+      "proveTreasurySolvency": {
+        "zkirBytes": 6400,
+        "bzkirBytes": 1755,
+        "zkirSha256": "de260641bbcc9f31912bdefda7f154f9095487626f39fb8d7bbf2c86834f92e2",
+        "bzkirSha256": "0d0a99b9554e18ba2876db6cb918e6fbae047415ea4473464aa4c78aaed6b4d6",
+        "verifierSha256": "3502eed14610918206fdee3c8cf57706d8a0a9abbbefad059fbf79c3b7d67aa3"
+      },
+      "registerApprovedJurisdiction": {
+        "zkirBytes": 3433,
+        "bzkirBytes": 964,
+        "zkirSha256": "ff5ef6b47da7ca40cb4b418d37d29c4fd3bcec2b5c21d2b22c922ff6b60b4489",
+        "bzkirSha256": "41dc1303f5106710e3946e30821793df770f404422ff518a78b8820f8fd6feca",
+        "verifierSha256": "6efc899e6c6fb576836a4d0652e6507e8b2ca71ee1c030a22106a3896cedc865"
+      },
+      "updateGovernancePolicy": {
+        "zkirBytes": 3606,
+        "bzkirBytes": 1053,
+        "zkirSha256": "68dee7e0679d425e8a102184f811831ada783bd53ca296d98e3353c612b1e732",
+        "bzkirSha256": "92493ddc16b74653fee068be9eb7c794fd0a059896cad84fefda94b346bb3d19",
+        "verifierSha256": "862b8edb04cdefdaf8776fda98ac1c8b50cb632c3d53a1253e5cedba531486c3"
+      },
+      "verifyReceiptOnChain": {
+        "zkirBytes": 969,
+        "bzkirBytes": 266,
+        "zkirSha256": "459124e12d93815c9e43f8bc544f9605b7ab41704ea157d322b43bcb15781cbc",
+        "bzkirSha256": "7439d2cac48b110f5ebc056d9997d0166b4b48fae84cc61b56524a15716ff39e",
+        "verifierSha256": "2246d4cff17819fce3731af475494025d19b518526d113ab7b60806156278322"
+      }
+    }
+  },
   "compiledArtifacts": {
+    "deployedOnPreviewVersion": "2.0.0",
     "sourceSha256": "f6f74e26e7a0871970a821ce99b53936b45c4ceb5525b81654b34992c9a7cc68",
     "contractJsSha256": "dbb62db0294d9298ac0983aa3ee26469e3158160970e85e210c0682fb5eb8e91",
     "circuits": {
@@ -45,7 +89,7 @@
       "registerApprovedJurisdiction": {
         "zkirSha256": "f91936a57d4ab471ab07dd95a4ee773d93b9128637e209951f33abebe847986e",
         "bzkirSha256": "03e6192c2c74c9e72e85b2609a52c6def72a3a028466acd5480b84fcf6ff7997",
-        "verifierSha256": "2b12075240da4ad0d4e8f0c9853b182f895dad1ece54bd5357e49a9413c404f"
+        "verifierSha256": "2b12075240da4ad0d4e8f0c9853b182f895dad1ece54bd5357e49a9413c141e6"
       },
       "updateGovernancePolicy": {
         "zkirSha256": "b119f072bb7c7a817d88178d70d96b30bdf5dd6903483c2f9e8c30ba64df4326",
@@ -60,6 +104,7 @@
     }
   },
   "deployment": {
+    "contractVersion": "2.0.0",
     "deployedAtIso": "2026-11-24T11:53:06.369Z",
     "deployerUnshieldedAddress": "mn_addr_preview18v6zyyds5v5yw9sulmelegrrf6lykkf2kc2mwmca5pwucmcm2stswkk4rd",
     "faucetFundingTxHash": "ab4dc3b057e26696283a89bb5aaa1c4b4395b722b8650b58fdeb5e255fdefd1e",

@@ -144,19 +144,19 @@ export function AuditTab({
         <div className="card">
           <div className="badge cyan" style={{ marginBottom: 8 }}>PUBLIC LEDGER SEES</div>
           <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
-            Receipt ID, budget tier ceiling, HistoricMerkleTree root, spent anti-replay nullifier, epoch, and disclosure tier.
+            Receipt ID, public cap bound (full ceiling under MinimalSolvency, band under ThresholdBand), HistoricMerkleTree root, secret-keyed nullifier, epoch, and registered auditor commitment.
           </div>
         </div>
         <div className="card">
           <div className="badge emerald" style={{ marginBottom: 8 }}>SCOPED AUDITOR VERIFIES</div>
           <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
-            Cryptographic <span className="mono">auditorTag</span> binding proving the receipt belongs to their oversight scope, plus immutable on-chain solvency &amp; jurisdiction checks.
+            Viewing key matches on-chain <span className="mono">authorizedAuditorCommitment</span> and receipt <span className="mono">auditorTag</span>, plus receipt immutability and Merkle root history.
           </div>
         </div>
         <div className="card">
-          <div className="badge amber" style={{ marginBottom: 8 }}>PERMANENTLY SHIELDED</div>
+          <div className="badge amber" style={{ marginBottom: 8 }}>WITHHELD FROM LEDGER</div>
           <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
-            Counterparty identity, confidential invoice line items, exact payout amount, exact DAO treasury balance, and exact ISO country code.
+            Counterparty identity, line items, exact payout amount, exact treasury balance, exact country leaf, and nullifier blinding salt. Operator holds cleartext locally.
           </div>
         </div>
       </div>
@@ -170,11 +170,11 @@ export function AuditTab({
               Live Midnight Indexer GraphQL State Reader (Walletless)
             </h2>
             <p className="card-subtitle">
-              Query the live Midnight Ledger 9 Indexer GraphQL API directly from the browser with zero wallet and zero Docker to verify chain finality, Zswap root, and contract state readback.
+              Queries the live Midnight Ledger 9 Preview Indexer directly from the browser (no wallet, no Docker) to inspect real on-chain contract state and Zswap Merkle root.
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span className="badge cyan">ZERO-WALLET JUDGE UX</span>
+            <span className="badge cyan">LIVE PREVIEW QUERY</span>
             {liveSnapshot && (
               <span className={`badge ${liveSnapshot.ok ? "emerald" : "rose"}`}>
                 {liveSnapshot.ok
@@ -293,9 +293,9 @@ export function AuditTab({
             border: "1px solid rgba(52, 211, 153, 0.28)"
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span className="badge emerald">LIVE ON MIDNIGHT PREVIEW</span>
+              <span className="badge emerald">LIVE MIDNIGHT PREVIEW (v2.0 DEPLOY)</span>
               <span className="mono" style={{ fontSize: 12, color: "#e2e8f0" }}>
                 Contract: 0x{LIVE_PREVIEW_DEPLOYMENT.contractAddress}
               </span>
@@ -303,6 +303,9 @@ export function AuditTab({
             <span className="mono" style={{ fontSize: 11, color: "#34d399" }}>
               6/6 SucceedEntirely · Blocks #250,802–#250,861 · 11,697 B State
             </span>
+          </div>
+          <div style={{ fontSize: 11.5, color: "#94a3b8", lineHeight: 1.45, marginBottom: 8 }}>
+            {LIVE_PREVIEW_DEPLOYMENT.contractVersionNote}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 6 }}>
             {LIVE_PREVIEW_DEPLOYMENT.transactions.map((tx) => (
@@ -320,6 +323,7 @@ export function AuditTab({
                   <span style={{ color: "#38bdf8", fontWeight: 600 }}>{tx.circuit}</span>
                   <span className="mono" style={{ color: "#34d399" }}>#{tx.blockHeight.toLocaleString()}</span>
                 </div>
+                <div style={{ color: "#cbd5e1", fontSize: 10.5, marginBottom: 2 }}>{tx.label}</div>
                 <div className="mono" style={{ color: "#94a3b8", fontSize: 10.5 }}>
                   tx: 0x{truncateHex(tx.txHash, 12, 8)}
                 </div>
@@ -384,13 +388,13 @@ export function AuditTab({
                       {liveSnapshot.contractFound
                         ? `${liveSnapshot.contractActionType} (${liveSnapshot.contractStateBytes} B)`
                         : liveSnapshot.queriedContractAddress
-                          ? "Local Simulator ID"
+                          ? "Not Found On-Chain"
                           : "Chain Head Synced"}
                     </div>
                     <div className="kpi-foot" style={{ fontSize: 11 }}>
                       {liveSnapshot.contractFound
                         ? `Block #${liveSnapshot.contractBlockHeight}`
-                        : `${ledger.auditReceipts.length} receipts · ${ledger.usedInvoiceNullifiers.length} nullifiers local`}
+                        : `${ledger.auditReceipts.length} simulator receipts local`}
                     </div>
                   </div>
                 </div>
@@ -410,7 +414,7 @@ export function AuditTab({
                         <strong>Live Midnight {liveSnapshot.network.toUpperCase()} Chain Verified at Block #{liveSnapshot.blockHeight?.toLocaleString()}:</strong>{" "}
                         {liveSnapshot.queriedContractAddress ? (
                           <>
-                            Queried <span className="mono">0x{truncateHex(liveSnapshot.queriedContractAddress, 12, 8)}</span> via <span className="mono">contractAction()</span> — not yet broadcast on-chain (deploy manifest ready in <span className="mono">deploy/preview.json</span>; official faucet uses interactive Cloudflare Turnstile). Local ProofVault ledger state holds <span className="mono">{ledger.settledInvoiceCount}</span> settled receipts &amp; commitment <span className="mono">0x{truncateHex(ledger.treasuryBalanceCommitment, 10, 8)}</span>.
+                            Queried <span className="mono">0x{truncateHex(liveSnapshot.queriedContractAddress, 12, 8)}</span> — no contract action at that address. Click &ldquo;Use Live Preview Contract&rdquo; to inspect our deployed Preview contract.
                           </>
                         ) : (
                           <>
@@ -449,16 +453,16 @@ export function AuditTab({
       </section>
 
       <div className="two-col-weighted">
-        {/* Left: On-Chain Receipt Registry */}
+        {/* Left: Simulator Receipt Registry */}
         <section className="card">
           <div className="card-header">
             <div>
               <h2 className="card-title">
                 <FileCheck2 size={16} color="#38bdf8" />
-                On-Chain Audit Receipts ({ledger.auditReceipts.length})
+                Simulator Audit Receipts ({ledger.auditReceipts.length})
               </h2>
               <p className="card-subtitle">
-                Indexed directly from <span className="mono">auditReceipts: Map&lt;Bytes&lt;32&gt;, AuditReceipt&gt;</span>. Select a receipt to run independent auditor verification.
+                From the browser SHA-256 simulator&apos;s <span className="mono">auditReceipts</span> map. Select a receipt to test 7-point independent verification and tamper detection.
               </p>
             </div>
           </div>
@@ -492,7 +496,7 @@ export function AuditTab({
 
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12.5, marginBottom: 5 }}>
                     <span style={{ color: "#e2e8f0" }}>
-                      Budget Cap &le; <strong>{formatUsdFromCents(r.budgetTierCapCents)}</strong>
+                      Strict Cap &lt; <strong>{formatUsdFromCents(r.budgetTierCapCents)}</strong>
                     </span>
                     <span className="mono" style={{ fontSize: 11, color: "#94a3b8" }}>
                       Epoch #{r.settledEpoch}
@@ -500,7 +504,7 @@ export function AuditTab({
                   </div>
 
                   <div className="mono" style={{ fontSize: 11, color: "#64748b" }}>
-                    Nullifier: 0x{truncateHex(r.nullifier, 12, 10)}
+                    Keyed Nullifier: 0x{truncateHex(r.nullifier, 12, 10)}
                   </div>
                 </button>
               );
@@ -517,7 +521,7 @@ export function AuditTab({
                 Independent Selective-Disclosure Verifier
               </h2>
               <p className="card-subtitle">
-                Auditors or DAO delegates paste any exported JSON receipt package to verify zero-knowledge compliance against the public Midnight ledger.
+                Auditors or governance reviewers paste any exported JSON receipt package to verify commitment binding, keyed nullifier membership, and registered auditor key scope.
               </p>
             </div>
             {verification && (
@@ -531,7 +535,7 @@ export function AuditTab({
             <label htmlFor="auditor-key-input">
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 <KeyRound size={13} color="#34d399" />
-                Auditor Viewing Key (Optional — required for AuditorScoped check)
+                Auditor Viewing Key (Optional — verified against authorizedAuditorCommitment)
               </span>
             </label>
             <input

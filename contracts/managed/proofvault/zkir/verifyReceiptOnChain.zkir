@@ -13,7 +13,7 @@
     { "op": "constrain_bits", "val": "%receiptId.1", "bits": 248 },
     { "op": "public_input", "type": "Scalar<BLS12-381>", "output": "%t.2", "guard": null },
     { "op": "impact", "guard": "0x01", "inputs": ["0x30"] },
-    { "op": "impact", "guard": "0x01", "inputs": ["0x50", "0x01", "0x01", "0x08"] },
+    { "op": "impact", "guard": "0x01", "inputs": ["0x50", "0x01", "0x01", "0x0c"] },
     { "op": "impact", "guard": "0x01", "inputs": ["0x10", "0x01", "0x01", "0x20", "%receiptId.0", "%receiptId.1"] },
     { "op": "impact", "guard": "0x01", "inputs": ["0x18"] },
     { "op": "impact", "guard": "0x01", "inputs": ["0x0d", "0x01", "0x01", "%t.2"] },

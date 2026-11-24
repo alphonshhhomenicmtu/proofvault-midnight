@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  Flame,
   Globe,
   KeyRound,
   Lock,
@@ -16,13 +17,14 @@ import {
   type SolvencyAttestation
 } from "../midnight/types";
 import { formatUsdFromCents, truncateHex } from "../midnight/presets";
+import type { ActiveTab } from "../App";
 
 interface OverviewTabProps {
   ledger: PublicLedgerSnapshot;
   privateVault: PrivateWitnessVault;
   lastSolvency: SolvencyAttestation | null;
   onProveSolvency: (claimedMinFloorCents: number) => void;
-  onNavigateTab: (tab: "overview" | "settle" | "audit" | "spec") => void;
+  onNavigateTab: (tab: ActiveTab) => void;
 }
 
 export function OverviewTab({
@@ -47,13 +49,13 @@ export function OverviewTab({
       <div className="kpi-grid">
         <div className="kpi-card">
           <div className="kpi-label">
-            <span>Shielded Treasury (Local)</span>
+            <span>Shielded Treasury (Simulator)</span>
             <Lock size={13} color="#f59e0b" />
           </div>
           <div className="kpi-value" style={{ color: "#fbbf24" }}>
             {revealPrivate ? formatUsdFromCents(privateVault.treasuryBalanceCents) : "$•,•••,•••.••"}
           </div>
-          <div className="kpi-foot">Private witness only — committed on-chain via SHA-256</div>
+          <div className="kpi-foot">Private witness — SHA-256 here; native persistentCommit in Compact</div>
         </div>
 
         <div className="kpi-card">
@@ -63,18 +65,18 @@ export function OverviewTab({
           </div>
           <div className="kpi-value">{formatUsdFromCents(ledger.policyMinReserveFloorCents)}</div>
           <div className="kpi-foot">
-            Max single cap: {formatUsdFromCents(ledger.policyMaxSingleSettlementCents)}
+            Governance max cap: {formatUsdFromCents(ledger.policyMaxSingleSettlementCents)}
           </div>
         </div>
 
         <div className="kpi-card">
           <div className="kpi-label">
-            <span>Settled ZK Receipts</span>
+            <span>Settled Audit Receipts</span>
             <CheckCircle2 size={13} color="#38bdf8" />
           </div>
           <div className="kpi-value">{ledger.settledInvoiceCount}</div>
           <div className="kpi-foot">
-            {ledger.usedInvoiceNullifiers.length} anti-replay nullifiers locked · Epoch #{ledger.currentEpoch}
+            {ledger.usedInvoiceNullifiers.length} secret-keyed nullifiers · Epoch #{ledger.currentEpoch}
           </div>
         </div>
 
@@ -85,7 +87,7 @@ export function OverviewTab({
           </div>
           <div className="kpi-value">{ledger.approvedJurisdictions.length}</div>
           <div className="kpi-foot">
-            HistoricMerkleTree&lt;8&gt; · {ledger.approvedJurisdictionsHistory.length} valid roots
+            HistoricMerkleTree&lt;8&gt; · {ledger.approvedJurisdictionsHistory.length} historic roots
           </div>
         </div>
       </div>
@@ -98,10 +100,10 @@ export function OverviewTab({
             <div>
               <h2 className="card-title">
                 <KeyRound size={16} color="#f59e0b" />
-                Private Off-Chain Witness Vault
+                Private Off-Chain Witness Vault (Operator View)
               </h2>
               <p className="card-subtitle">
-                Held strictly inside the treasury operator&apos;s local Midnight witness state. Zero plaintext fields are ever broadcast on-chain.
+                Private witnesses held on the treasury operator&apos;s device. The operator sees cleartext; Midnight&apos;s Compact compiler blocks these witnesses from public state outside explicit <span className="mono">disclose()</span> sites.
               </p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -140,39 +142,40 @@ export function OverviewTab({
               </span>
             </div>
             <div className="kv-row">
-              <span className="kv-key">auditorViewingKeyHash()</span>
+              <span className="kv-key">nullifierBlindingSalt (derived)</span>
               <span className="kv-val">
-                {revealPrivate ? `0x${truncateHex(privateVault.auditorViewingKeyHashHex, 14, 12)}` : "0x••••••••••••••••••••"}
+                {revealPrivate ? `0x${truncateHex(privateVault.nullifierBlindingSaltHex, 14, 12)}` : "0x••••••••••••••••••••"}
               </span>
             </div>
             <div className="kv-row">
-              <span className="kv-key">Confidential Counterparties</span>
-              <span className="kv-val" style={{ color: "#34d399" }}>
-                Shielded in local memory · Redacted from ledger
+              <span className="kv-key">auditorViewingKeyHash()</span>
+              <span className="kv-val">
+                {revealPrivate ? `0x${truncateHex(privateVault.auditorViewingKeyHashHex, 14, 12)}` : "0x••••••••••••••••••••"}
               </span>
             </div>
           </div>
 
           <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button type="button" className="btn primary" onClick={() => onNavigateTab("settle")}>
-              Launch Confidential Settlement →
+              Settle Confidential Invoice →
             </button>
-            <button type="button" className="btn" onClick={() => onNavigateTab("audit")}>
-              Open Selective-Disclosure Portal
+            <button type="button" className="btn danger" onClick={() => onNavigateTab("breaker")}>
+              <Flame size={14} />
+              Launch Adversarial Breaker Lab
             </button>
           </div>
         </section>
 
-        {/* Right: Public Midnight On-Chain Ledger */}
+        {/* Right: Public Ledger State */}
         <section className="card public-zone">
           <div className="card-header">
             <div>
               <h2 className="card-title">
                 <ShieldCheck size={16} color="#38bdf8" />
-                Public Midnight Ledger State
+                Public Ledger State (Simulator Mirror of v2.1)
               </h2>
               <p className="card-subtitle">
-                Verifiable on-chain commitments, Merkle roots, governance limits, and anti-replay nullifiers published by <span className="mono">proofvault.compact</span>.
+                Public commitments, Merkle root, registered auditor commitment, persisted solvency record, and keyed nullifiers. Use <span className="mono">Audit Portal</span> to read the live Midnight Preview contract.
               </p>
             </div>
             <span className={`badge ${ledger.vaultStatus === VaultStatus.Active ? "emerald" : "rose"}`}>
@@ -182,7 +185,7 @@ export function OverviewTab({
 
           <div className="kv-list">
             <div className="kv-row">
-              <span className="kv-key">Contract Address</span>
+              <span className="kv-key">Simulator Contract ID</span>
               <span className="kv-val">0x{truncateHex(ledger.contractAddress, 14, 12)}</span>
             </div>
             <div className="kv-row">
@@ -192,27 +195,33 @@ export function OverviewTab({
               </span>
             </div>
             <div className="kv-row">
-              <span className="kv-key">treasuryAuthority (pk)</span>
-              <span className="kv-val">0x{truncateHex(ledger.treasuryAuthority, 14, 12)}</span>
+              <span className="kv-key">authorizedAuditorCommitment</span>
+              <span className="kv-val">0x{truncateHex(ledger.authorizedAuditorCommitment, 14, 12)}</span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-key">lastSolvencyAttestation</span>
+              <span className="kv-val" style={{ color: "#34d399" }}>
+                {ledger.lastSolvencyFloorCents > 0
+                  ? `>= ${formatUsdFromCents(ledger.lastSolvencyFloorCents)} (Epoch #${ledger.lastSolvencyEpoch})`
+                  : "None attested yet"}
+              </span>
             </div>
             <div className="kv-row">
               <span className="kv-key">approvedJurisdictions.root()</span>
               <span className="kv-val">0x{truncateHex(ledger.approvedJurisdictionsRoot, 14, 12)}</span>
             </div>
-            <div className="kv-row">
-              <span className="kv-key">Governance Policy (Epoch #{ledger.currentEpoch})</span>
-              <span className="kv-val">
-                Max {formatUsdFromCents(ledger.policyMaxSingleSettlementCents)} · Floor{" "}
-                {formatUsdFromCents(ledger.policyMinReserveFloorCents)}
-              </span>
-            </div>
           </div>
 
           <div style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
             <span className="badge cyan">Compact {ledger.compactLanguageVersion} · {ledger.zkirVersion}</span>
-            <button type="button" className="btn sm" onClick={() => onNavigateTab("spec")}>
-              Inspect Compiled Circuits &amp; Merkle Tree →
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" className="btn sm" onClick={() => onNavigateTab("audit")}>
+                Live Preview Indexer
+              </button>
+              <button type="button" className="btn sm ghost" onClick={() => onNavigateTab("spec")}>
+                Compact Source →
+              </button>
+            </div>
           </div>
         </section>
       </div>
@@ -223,13 +232,13 @@ export function OverviewTab({
           <div>
             <h2 className="card-title">
               <ShieldCheck size={16} color="#34d399" />
-              Zero-Knowledge Treasury Solvency Attestation — <span className="mono">proveTreasurySolvency()</span>
+              Authenticated Treasury Solvency Attestation — <span className="mono">proveTreasurySolvency()</span>
             </h2>
             <p className="card-subtitle">
-              Prove to DAO governance, lenders, or institutional auditors that shielded treasury reserves exceed any chosen floor without revealing the actual balance.
+              Requires private <span className="mono">operatorSecretKey()</span> witness, verifies committed balance against governance and requested floors, and persists <span className="mono">lastSolvencyAttestation</span> + <span className="mono">lastSolvencyFloor</span> into ledger state.
             </p>
           </div>
-          <span className="badge cyan">ZK CIRCUIT · 3,879 B ZKIR</span>
+          <span className="badge cyan">v2.1 CIRCUIT · 6,400 B ZKIR</span>
         </div>
 
         <div className="two-col-weighted">
@@ -295,8 +304,8 @@ export function OverviewTab({
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>
                     {lastSolvency.ok
-                      ? `ZK Solvency Proven: Shielded Balance >= ${formatUsdFromCents(lastSolvency.claimedMinFloorCents)}`
-                      : `ZK Proof Rejected: ${lastSolvency.error}`}
+                      ? `Solvency Attested & Persisted: Balance >= ${formatUsdFromCents(lastSolvency.claimedMinFloorCents)}`
+                      : `Proof Rejected (${lastSolvency.errorCode ?? "ERR_SOLVENCY"}): ${lastSolvency.error}`}
                   </div>
                   {lastSolvency.attestationDigest && (
                     <div className="mono-wrap" style={{ fontSize: 11.5, opacity: 0.92 }}>
@@ -315,7 +324,7 @@ export function OverviewTab({
                 <div className="step-body">
                   <div className="step-head">Ready to Execute proveTreasurySolvency</div>
                   <div className="step-detail">
-                    Click any threshold preset on the left to open the shielded balance commitment locally and verify solvency constraints in zero knowledge.
+                    Click any threshold preset on the left to test operator authentication, commitment opening, and solvency floor checks in the SHA-256 simulator.
                   </div>
                 </div>
               </div>

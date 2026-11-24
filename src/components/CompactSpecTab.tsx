@@ -80,15 +80,15 @@ export function CompactSpecTab({
           <div>
             <h2 className="card-title">
               <ShieldCheck size={16} color="#34d399" />
-              Verified Compact 0.28.0 Compilation &amp; ZKIR Artifact Summary
+              Compiled Compact 0.28.0 v2.1 Contract &amp; ZKIR Artifacts
             </h2>
             <p className="card-subtitle">
-              Compiled locally via official Midnight Compact toolchain with full ZKIR intermediate representation and prover/verifier key generation.
+              Compiled with <span className="mono">compactc 0.36.1</span> (<span className="mono">compact compile contracts/proofvault.compact contracts/managed/proofvault</span>). Exercised directly via <span className="mono">@midnight-ntwrk/compact-runtime@0.21.0</span> in <span className="mono">npm test</span>.
             </p>
           </div>
           <span className="badge emerald">
             <CheckCircle2 size={12} />
-            5/5 CIRCUITS COMPILED
+            5/5 CIRCUITS · {COMPACT_COMPILER_METADATA.auditedAssertGuards} GUARDS
           </span>
         </div>
 
@@ -142,10 +142,10 @@ export function CompactSpecTab({
             <div>
               <h2 className="card-title">
                 <Globe size={16} color="#38bdf8" />
-                Compliance Merkle Registry
+                Compliance Merkle Registry (Simulator)
               </h2>
               <p className="card-subtitle">
-                Circuit <span className="mono">registerApprovedJurisdiction()</span> inserts compliant ISO digests into <span className="mono">HistoricMerkleTree&lt;8, Bytes&lt;32&gt;&gt;</span>.
+                Circuit <span className="mono">registerApprovedJurisdiction()</span> appends compliant ISO digests to <span className="mono">HistoricMerkleTree&lt;8, Bytes&lt;32&gt;&gt;</span> (append-only in v2.1; historical roots remain valid for async proving).
               </p>
             </div>
             <span className="badge cyan">{ledger.approvedJurisdictions.length} / 256 LEAVES</span>
@@ -278,7 +278,7 @@ export function CompactSpecTab({
           <div className="kv-row" style={{ marginTop: 12 }}>
             <span className="kv-key">Active Guardrails</span>
             <span className="kv-val">
-              Cap {formatUsdFromCents(ledger.policyMaxSingleSettlementCents)} · Floor{" "}
+              Ceiling {formatUsdFromCents(ledger.policyMaxSingleSettlementCents)} · Floor{" "}
               {formatUsdFromCents(ledger.policyMinReserveFloorCents)}
             </span>
           </div>
@@ -291,10 +291,10 @@ export function CompactSpecTab({
           <div>
             <h2 className="card-title">
               <Code2 size={16} color="#38bdf8" />
-              contracts/proofvault.compact
+              contracts/proofvault.compact (v2.1 · SHA-256 {COMPACT_COMPILER_METADATA.sourceSha256.slice(0, 12)}...)
             </h2>
             <p className="card-subtitle">
-              Production Midnight Compact 0.28.0 contract source compiled with <span className="mono">compactc 0.36.1</span> and tested directly on <span className="mono">@midnight-ntwrk/compact-runtime@0.21.0</span>.
+              Hardened Compact 0.28.0 contract source compiled with <span className="mono">compactc 0.36.1</span> and tested directly on <span className="mono">@midnight-ntwrk/compact-runtime@0.21.0</span>.
             </p>
           </div>
           <button type="button" className="btn sm" onClick={handleCopyContract}>

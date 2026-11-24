@@ -140,6 +140,7 @@ async function runCompiledRuntimeLifecycle() {
   const sampleAddress = runtime.sampleContractAddress();
   const coinPk = runtime.toHex(bytes32FromLabel("proofvault:testnet:coinpk"));
   const initOpPk = pureCircuits.deriveOperatorPublicKey(operatorSk);
+  const initAuditorCommit = pureCircuits.deriveAuditorCommitment(auditorVkHash);
   const initCommit = runtime.persistentCommit(UINT64, 245_000_000n, initialSalt);
 
   let privateState = {
@@ -160,6 +161,7 @@ async function runCompiledRuntimeLifecycle() {
     runtime.createConstructorContext(privateState, coinPk),
     initOpPk,
     initCommit,
+    initAuditorCommit,
     15_000_000n,
     50_000_000n
   );
@@ -204,7 +206,8 @@ async function runCompiledRuntimeLifecycle() {
   privateState = {
     ...privateState,
     treasurySecretBalance: 245_000_000n - 4_250_000n,
-    treasuryBlindingFactor: privateState.nextTreasuryBlindingFactor
+    treasuryBlindingFactor: privateState.nextTreasuryBlindingFactor,
+    nextTreasuryBlindingFactor: bytes32FromLabel("proofvault:testnet:salt:2")
   };
 
   // Step 4: Verify negative guards (double-spend replay & sanctioned KP)

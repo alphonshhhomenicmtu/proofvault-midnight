@@ -69,23 +69,34 @@ export type ProvableCircuits<PS> = {
 
 export type PureCircuits = {
   deriveOperatorPublicKey(sk_0: Uint8Array): Uint8Array;
-  deriveNullifier(vendorId_0: Uint8Array, lineItemsHash_0: Uint8Array): Uint8Array;
+  deriveAuditorCommitment(auditorVkHash_0: Uint8Array): Uint8Array;
+  deriveNullifierBlindingSalt(sk_0: Uint8Array): Uint8Array;
+  deriveNullifier(nullifierSalt_0: Uint8Array,
+                  vendorId_0: Uint8Array,
+                  lineItemsHash_0: Uint8Array): Uint8Array;
   deriveInvoiceCommitment(vendorId_0: Uint8Array,
                           lineItemsHash_0: Uint8Array,
                           amount_0: bigint,
+                          jurisdictionLeafDigest_0: Uint8Array,
                           salt_0: Uint8Array): Uint8Array;
 }
 
 export type Circuits<PS> = {
   deriveOperatorPublicKey(context: __compactRuntime.CircuitContext<PS>,
                           sk_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
+  deriveAuditorCommitment(context: __compactRuntime.CircuitContext<PS>,
+                          auditorVkHash_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
+  deriveNullifierBlindingSalt(context: __compactRuntime.CircuitContext<PS>,
+                              sk_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
   deriveNullifier(context: __compactRuntime.CircuitContext<PS>,
+                  nullifierSalt_0: Uint8Array,
                   vendorId_0: Uint8Array,
                   lineItemsHash_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
   deriveInvoiceCommitment(context: __compactRuntime.CircuitContext<PS>,
                           vendorId_0: Uint8Array,
                           lineItemsHash_0: Uint8Array,
                           amount_0: bigint,
+                          jurisdictionLeafDigest_0: Uint8Array,
                           salt_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
   registerApprovedJurisdiction(context: __compactRuntime.CircuitContext<PS>,
                                jurisdictionDigest_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
@@ -104,11 +115,15 @@ export type Circuits<PS> = {
 
 export type Ledger = {
   readonly treasuryAuthority: Uint8Array;
+  readonly authorizedAuditorCommitment: Uint8Array;
   readonly treasuryBalanceCommitment: Uint8Array;
   readonly policyMaxSingleSettlement: bigint;
   readonly policyMinReserveFloor: bigint;
   readonly currentEpoch: bigint;
   readonly vaultStatus: VaultStatus;
+  readonly lastSolvencyAttestation: Uint8Array;
+  readonly lastSolvencyFloor: bigint;
+  readonly lastSolvencyEpoch: bigint;
   approvedJurisdictions: {
     isFull(): boolean;
     checkRoot(rt_0: { field: bigint }): boolean;
@@ -143,6 +158,7 @@ export declare class Contract<PS = any, W extends Witnesses<PS> = Witnesses<PS>>
   initialState(context: __compactRuntime.ConstructorContext<PS>,
                initOperatorPk_0: Uint8Array,
                initBalanceCommitment_0: Uint8Array,
+               initAuditorCommitment_0: Uint8Array,
                maxSingleSettlement_0: bigint,
                minReserveFloor_0: bigint): Promise<__compactRuntime.ConstructorResult<PS>>;
 }

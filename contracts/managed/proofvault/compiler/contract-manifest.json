@@ -8,132 +8,132 @@
     "type": "directory",
     "contract-info.json": {
       "type": "file",
-      "size": 10824,
-      "hash": "64b31d0fb712187fe8c95a470e0929f244e8143eafda820c593c66f3ee8bb870"
+      "size": 12642,
+      "hash": "9e8d99878e87a8c2053caff931859040a0217ea5e8ed65d919ba3b3b479f5035"
     }
   },
   "contract": {
     "type": "directory",
     "index.d.ts": {
       "type": "file",
-      "size": 8707,
-      "hash": "94e0fbc56488417a4b8047845e42f985983922b7889633db7f6267004df11b8a"
+      "size": 9673,
+      "hash": "8f6baf9a4eb666d1d356a54ca030ccfeac7185479659b5d46bdb2bbb97cf12ca"
     },
     "index.js": {
       "type": "file",
-      "size": 148083,
-      "hash": "dbb62db0294d9298ac0983aa3ee26469e3158160970e85e210c0682fb5eb8e91"
+      "size": 177859,
+      "hash": "b32e86c309610e9fd16804a2fdd1465b22218b24790acf17ab0baea83f3e46fc"
     },
     "index.js.map": {
       "type": "file",
-      "size": 6032,
-      "hash": "a4a9ae37d928d2a9069e03769342e67dc3ac1357d75d5aab6c3bf20524aed564"
+      "size": 7359,
+      "hash": "962b917b8881fd20d5c576487b3c92c4d8b4365ad25a9e90da62ecc5c28a490f"
     }
   },
   "zkir": {
     "type": "directory",
     "proveTreasurySolvency.bzkir": {
       "type": "file",
-      "size": 998,
-      "hash": "10d13386a5f6d73f1d670bdeda37b281f03cb76564cdc7712f02fa5c0ec584eb"
+      "size": 1755,
+      "hash": "0d0a99b9554e18ba2876db6cb918e6fbae047415ea4473464aa4c78aaed6b4d6"
     },
     "proveTreasurySolvency.zkir": {
       "type": "file",
-      "size": 3879,
-      "hash": "eaeba11385fe6e113b0b1659a363e7e70a52d911b7cf62b918b896f5e2b8ba10"
+      "size": 6400,
+      "hash": "de260641bbcc9f31912bdefda7f154f9095487626f39fb8d7bbf2c86834f92e2"
     },
     "registerApprovedJurisdiction.bzkir": {
       "type": "file",
       "size": 964,
-      "hash": "03e6192c2c74c9e72e85b2609a52c6def72a3a028466acd5480b84fcf6ff7997"
+      "hash": "41dc1303f5106710e3946e30821793df770f404422ff518a78b8820f8fd6feca"
     },
     "registerApprovedJurisdiction.zkir": {
       "type": "file",
       "size": 3433,
-      "hash": "f91936a57d4ab471ab07dd95a4ee773d93b9128637e209951f33abebe847986e"
+      "hash": "ff5ef6b47da7ca40cb4b418d37d29c4fd3bcec2b5c21d2b22c922ff6b60b4489"
     },
     "settleConfidentialInvoice.bzkir": {
       "type": "file",
-      "size": 6159,
-      "hash": "d9569d7da2adb47ca33a2d02cc34af758f8cc24df90675d19d0009c2eaaab594"
+      "size": 7445,
+      "hash": "8c136566281cfa906022bb5720d52beb0304edfd93497c6ccd8ae15fa02672ca"
     },
     "settleConfidentialInvoice.zkir": {
       "type": "file",
-      "size": 20385,
-      "hash": "4e37bb2b62b51bebfbb87d9ee0aa306cf70ecb9946552cac94c7267e3de34b5f"
+      "size": 24040,
+      "hash": "b337adfc8b8362928c107df98893bcf6c70e9114d4a0fae205732fac1ebec295"
     },
     "updateGovernancePolicy.bzkir": {
       "type": "file",
       "size": 1053,
-      "hash": "39ca4d2815720eea4cfd045718d5186c49b737fefb4fd00b55d74615cd42b8cd"
+      "hash": "92493ddc16b74653fee068be9eb7c794fd0a059896cad84fefda94b346bb3d19"
     },
     "updateGovernancePolicy.zkir": {
       "type": "file",
       "size": 3606,
-      "hash": "b119f072bb7c7a817d88178d70d96b30bdf5dd6903483c2f9e8c30ba64df4326"
+      "hash": "68dee7e0679d425e8a102184f811831ada783bd53ca296d98e3353c612b1e732"
     },
     "verifyReceiptOnChain.bzkir": {
       "type": "file",
       "size": 266,
-      "hash": "bf4c27a4afdf3a393e7a488a315470e9674aefbfb794442c934cb8bdf01f2fab"
+      "hash": "7439d2cac48b110f5ebc056d9997d0166b4b48fae84cc61b56524a15716ff39e"
     },
     "verifyReceiptOnChain.zkir": {
       "type": "file",
       "size": 969,
-      "hash": "41c64f02134857eb91d00ccb36bc8b87ec02c580106f52df7c133839bcae599d"
+      "hash": "459124e12d93815c9e43f8bc544f9605b7ab41704ea157d322b43bcb15781cbc"
     }
   },
   "keys": {
     "type": "directory",
     "proveTreasurySolvency.prover": {
       "type": "file",
-      "size": 11277558,
-      "hash": "9f1738bf4cf6d0f81f1fb4637990a4b2ee41ab0a53f94d25a61d0a48f48f92cd"
+      "size": 22550507,
+      "hash": "f6d4b8fdfd70deede2ab7359366855a1d202d1ead8826969fb8adbe2ddeab336"
     },
     "proveTreasurySolvency.verifier": {
       "type": "file",
       "size": 2121,
-      "hash": "dce79f6212bd36859a5d25e5c1d2fa5f90c4856851f4ff7cc7e98ea8cb3c404f"
+      "hash": "3502eed14610918206fdee3c8cf57706d8a0a9abbbefad059fbf79c3b7d67aa3"
     },
     "registerApprovedJurisdiction.prover": {
       "type": "file",
       "size": 11277524,
-      "hash": "e7cc86727e94604ae585c673ea45b54fe8e9c6b879bd0f48c57d7511152e4a80"
+      "hash": "569b70024e6ca8cb44b2fe3ee1aacd03d1ebcf9b86df2be5a90dfcb1b5dc86b9"
     },
     "registerApprovedJurisdiction.verifier": {
       "type": "file",
       "size": 2121,
-      "hash": "2b12075240da4ad0d4e8f0c9853b182f895dad1ece54bd5357e49a9413c141e6"
+      "hash": "6efc899e6c6fb576836a4d0652e6507e8b2ca71ee1c030a22106a3896cedc865"
     },
     "settleConfidentialInvoice.prover": {
       "type": "file",
-      "size": 45099295,
-      "hash": "a4fb767a973d18fd5d7bb796253c9987929cd97937fc6f9c959a13a3a1c38a80"
+      "size": 90189349,
+      "hash": "8b6d6f3274856d0334ebb35d863c6618cff301535e58978919b30402570a3f03"
     },
     "settleConfidentialInvoice.verifier": {
       "type": "file",
       "size": 2121,
-      "hash": "11bfb53a2f236555e9efc3f9565a693839305c2c09cc58bba71670029476116d"
+      "hash": "5f2631855ea13ba5cd300be061d423b099393dd19fcb8c67ba53b021666bf017"
     },
     "updateGovernancePolicy.prover": {
       "type": "file",
       "size": 11277613,
-      "hash": "49b444662f5500a5b88051f331d1f341659d5f200fe478e95347328fd27c0db4"
+      "hash": "535ec9f5a55296d4224d413d2d7bbf370581d2363e8fb264c06d9953623b451e"
     },
     "updateGovernancePolicy.verifier": {
       "type": "file",
       "size": 2121,
-      "hash": "8fe870a55ebff8f81dfee0cb9576a0f7d60597629f5857821da39cdf67df3f87"
+      "hash": "862b8edb04cdefdaf8776fda98ac1c8b50cb632c3d53a1253e5cedba531486c3"
     },
     "verifyReceiptOnChain.prover": {
       "type": "file",
       "size": 224218,
-      "hash": "a9d34bee9bd63412e9f8a2741d323a7abbbdeb12c764c47fda600f197b7ef4a2"
+      "hash": "60e3ba8ee7ef8637d019e22d70989a8ea304a3b7ac252ef414eebf5689d145db"
     },
     "verifyReceiptOnChain.verifier": {
       "type": "file",
       "size": 1353,
-      "hash": "aa4fa2ca83088d1088d3ced8203fdc07cda7cbfa0d2a2f0d9f3cec0fdf305ed1"
+      "hash": "2246d4cff17819fce3731af475494025d19b518526d113ab7b60806156278322"
     }
   }
 }

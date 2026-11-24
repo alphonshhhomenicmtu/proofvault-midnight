@@ -1,93 +1,88 @@
-# ProofVault Privacy Boundary & Disclosure Audit (`contracts/proofvault.compact`)
+# ProofVault v2.1 Privacy Boundary & Disclosure Audit (`contracts/proofvault.compact`)
 
 > **Toolchain:** Compact `0.28.0` / `compactc 0.36.1` (`zkir-3.2.1`) / Midnight Ledger 9 / `@midnight-ntwrk/compact-runtime@0.21.0`
-> **Contract SHA-256:** `f6f74e26e7a0871970a821ce99b53936b45c4ceb5525b81654b34992c9a7cc68`
+> **Contract SHA-256 (v2.1):** `fc0ac33e60d3c69769b9d501a5a5eee178fcd49ed44360675b87a852625f4a2a`
+> **Compiled `index.js` SHA-256:** `b32e86c309610e9fd16804a2fdd1465b22218b24790acf17ab0baea83f3e46fc`
 > **License:** Apache-2.0
 
-This document provides a formal, line-by-line privacy boundary audit of `contracts/proofvault.compact`. Every `witness` input, every `disclose(...)` call site, and every trust boundary across actors is documented explicitly so security reviewers and DAO governance teams can verify that ProofVault achieves **minimal necessary disclosure** without accidental bit-leaks.
+This audit maps every private `witness`, every `disclose(...)` call site, every trust assumption, and every open limitation of `contracts/proofvault.compact` v2.1.
 
 ---
 
-## 1. Private Off-Chain Witness Inventory (Never Disclosed in Plaintext)
+## 1. Private Off-Chain Witness Inventory (11 Witnesses — Never Passed Directly to `disclose()`)
 
-All 11 Compact `witness` functions execute exclusively inside the operator's local proving environment (`PrivateWitnessVault`). None of these values are ever passed directly to `disclose()`.
+All 11 Compact `witness` functions execute locally in the operator's proving environment. None of their cleartext values are written to public ledger state.
 
-| # | Witness Declaration | Compact Type | Cryptographic Transform Inside Circuit | Plaintext Ever On-Chain? |
+| # | Witness Declaration | Compact Type | Cryptographic Transform Inside Circuit | Plaintext On-Chain? |
 |---:|---|---|---|---|
-| 1 | `operatorSecretKey()` | `Bytes<32>` | Domain-separated hash `deriveOperatorPublicKey(sk) == treasuryAuthority` | **Never** |
-| 2 | `treasurySecretBalance()` | `Uint<64>` | Opened against `persistentCommit<Uint<64>>(balance, salt)` and compared against bounds | **Never** |
-| 3 | `treasuryBlindingFactor()` | `Bytes<32>` | Consumed as randomness in `persistentCommit` opening | **Never** |
-| 4 | `nextTreasuryBlindingFactor()` | `Bytes<32>` | Consumed as fresh blinding randomness in post-settlement `persistentCommit` | **Never** |
-| 5 | `invoiceVendorId()` | `Bytes<32>` | Absorbed into `deriveNullifier` and `deriveInvoiceCommitment` | **Never** |
-| 6 | `invoiceLineItemsHash()` | `Bytes<32>` | Absorbed into `deriveNullifier` and `deriveInvoiceCommitment` | **Never** |
-| 7 | `invoiceAmount()` | `Uint<64>` | Range-checked (`0 < amt <= cap <= max` and `bal - amt >= floor`), hashed into `deriveInvoiceCommitment` | **Never** |
-| 8 | `invoiceSalt()` | `Bytes<32>` | Blinding factor for `persistentCommit` in `deriveInvoiceCommitment` | **Never** |
-| 9 | `jurisdictionLeaf()` | `Bytes<32>` | Verified equal to `jPath.leaf`; hashed upward along Merkle path | **Never** |
-| 10 | `jurisdictionMerklePath()` | `MerkleTreePath<8, Bytes<32>>` | Evaluated via `merkleTreePathRoot<8, Bytes<32>>(jPath)`; only root checked against `HistoricMerkleTree` | **Never** |
-| 11 | `auditorViewingKeyHash()` | `Bytes<32>` | Combined with `invoiceCommitment` under `"proofvault:auditor:v1"` tag (only when `AuditorScoped`) | **Never** |
+| 1 | `operatorSecretKey()` | `Bytes<32>` | Verified against `treasuryAuthority = H("proofvault:operator:v1", sk)`; also derives secret `nullifierSalt = H("proofvault:nullifier-salt:v2", sk)` | Never |
+| 2 | `treasurySecretBalance()` | `Uint<64>` | Opened against `persistentCommit<Uint<64>>(balance, salt)` and range-checked against reserve floor and invoice amount | Never |
+| 3 | `treasuryBlindingFactor()` | `Bytes<32>` | Opening randomness for current `treasuryBalanceCommitment`; asserted distinct from `nextTreasuryBlindingFactor()` | Never |
+| 4 | `nextTreasuryBlindingFactor()` | `Bytes<32>` | Fresh 256-bit blinding randomness for post-settlement `persistentCommit` (`nextSalt != currentSalt`) | Never |
+| 5 | `invoiceVendorId()` | `Bytes<32>` | Absorbed into secret-keyed `deriveNullifier` and salted `deriveInvoiceCommitment` | Never |
+| 6 | `invoiceLineItemsHash()` | `Bytes<32>` | Absorbed into secret-keyed `deriveNullifier` and salted `deriveInvoiceCommitment` | Never |
+| 7 | `invoiceAmount()` | `Uint<64>` | Strictly range-checked (`0 < amount < publicCap <= policyMaxSingleSettlement` and `balance - amount >= policyMinReserveFloor`), hashed into `deriveInvoiceCommitment` | Never |
+| 8 | `invoiceSalt()` | `Bytes<32>` | Blinding factor for `persistentCommit` inside `deriveInvoiceCommitment` | Never |
+| 9 | `jurisdictionLeaf()` | `Bytes<32>` | Asserted equal to `jPath.leaf`, checked against `approvedJurisdictions`, **and bound directly into `deriveInvoiceCommitment`** | Never |
+| 10 | `jurisdictionMerklePath()` | `MerkleTreePath<8, Bytes<32>>` | Evaluated via `merkleTreePathRoot<8, Bytes<32>>(jPath)`; only the resulting historic root is checked on-chain | Never |
+| 11 | `auditorViewingKeyHash()` | `Bytes<32>` | Verified against `authorizedAuditorCommitment = H("proofvault:auditor-reg:v2", vkHash)` when `AuditorScoped`; used as secret MAC key for `auditorTag` | Never |
 
 ---
 
-## 2. Exhaustive Circuit-by-Circuit `disclose()` Justification Matrix
+## 2. Circuit-by-Circuit `disclose(...)` Inventory (21 Call Sites)
 
-Every `disclose(...)` invocation in `contracts/proofvault.compact` is audited below. Compact enforces static information-flow taint tracking at compile time (`compactc 0.36.1`), meaning **no other private value can reach public ledger state** outside these exact lines.
+Compact `0.28.0` enforces compile-time taint tracking (`compactc 0.36.1`). Every `disclose(...)` call in `contracts/proofvault.compact` v2.1 is accounted for below:
 
-| Circuit | Line | Disclosed Expression | Ledger Sink | Information-Theoretic Leakage | Justification |
-|---|---:|---|---|---|---|
-| `constructor` | 107 | `disclose(initOperatorPk)` | `treasuryAuthority` | Public operator key digest (32 B) | Required anchor for private operator authorization proofs. Derived via one-way `persistentHash`; reveals zero bits of `operatorSecretKey`. |
-| `constructor` | 108 | `disclose(initBalanceCommitment)` | `treasuryBalanceCommitment` | Hiding commitment (32 B) | Cryptographically hides initial treasury balance under 256-bit `treasuryBlindingFactor`. |
-| `constructor` | 109 | `disclose(maxSingleSettlement)` | `policyMaxSingleSettlement` | Public DAO ceiling (`Uint<64>`) | Governance guardrail explicitly intended to be publicly auditable by tokenholders. |
-| `constructor` | 110 | `disclose(minReserveFloor)` | `policyMinReserveFloor` | Public solvency floor (`Uint<64>`) | Public reserve threshold required for meaningful external solvency proofs. |
-| `registerApprovedJurisdiction` | 122 | `disclose(jurisdictionDigest)` | `approvedJurisdictions.insert(...)` | Approved jurisdiction leaf digest | Governance allowlist (non-sanctioned ISO codes) is intentionally public policy; individual counterparty selection remains private during settlement. |
-| `proveTreasurySolvency` | 143 | `disclose(attestation)` | Return value (`Bytes<32>`) | Binding digest of `(tag, commitment, hash(claimedMinFloor))` | Proves `balance >= max(policyMinReserveFloor, claimedMinFloor)` without leaking exact balance or margin above floor. |
-| `settleConfidentialInvoice` | 181 | `disclose(computedRoot)` | `approvedJurisdictions.checkRoot(...)` | Historic Merkle root (publicly known) | Root is already public state in `approvedJurisdictions`; reveals **which policy snapshot** was used, never which leaf/country matched. |
-| `settleConfidentialInvoice` | 191 | `disclose(nullifier)` | `usedInvoiceNullifiers` + `AuditReceipt.nullifier` | Pseudorandom 32 B tag `H("proofvault:nullifier:v1", vendorId, lineItemsHash)` | Prevents double-settlement of the same invoice. Reveals zero bits of vendor identity or scope provided `vendorId` and `lineItemsHash` have high entropy. |
-| `settleConfidentialInvoice` | 195 | `disclose(invoiceCommitment)` | `AuditReceipt.invoiceCommitment` | Salted `persistentCommit` (32 B) | Cryptographically binds amount, vendor, and line items for optional off-chain dispute opening; computationally hiding under 256-bit `invoiceSalt`. |
-| `settleConfidentialInvoice` | 198 | `disclose(tier)` | `AuditReceipt.disclosureTier` | 2-bit enum (`0`, `1`, or `2`) | Necessary so independent verifiers know whether `auditorTag` must be verified or zeroed. |
-| `settleConfidentialInvoice` | 199 | `disclose(budgetTierCap)` | `AuditReceipt.budgetTierCap` | Public budget band ceiling (`Uint<64>`) | Intentional selective disclosure: proves payout `<= budgetTierCap` without revealing the exact invoice amount inside `(0, budgetTierCap]`. |
-| `settleConfidentialInvoice` | 200 | `disclose(computedRoot.field)` | Hashed into `AuditReceipt.jurisdictionRoot` | Public historic tree root field | Permanently binds the receipt to a valid compliance allowlist root without revealing the counterparty's ISO country code. |
-| `settleConfidentialInvoice` | 210 | `disclose(rawAuditorTag)` | `AuditReceipt.auditorTag` (only if `AuditorScoped`) | Key-bound 32 B MAC `H("proofvault:auditor:v1", vkHash, invoiceCommitment)` | Enables a designated external auditor holding `auditorViewingKey` to confirm oversight scope. Under `MinimalSolvency` and `ThresholdBand`, `auditorTag` is deterministically `0x00...00` (zero bits disclosed). |
-| `settleConfidentialInvoice` | 213 | `disclose(receiptId)` | `auditReceipts` map key + return value | Deterministic hash of `(tag, publicInvoiceCommitment, publicNullifier)` | Derived strictly from already-disclosed commitments; reveals zero additional private information. |
-| `settleConfidentialInvoice` | 224 | `disclose(nextCommitment)` | `treasuryBalanceCommitment` | Re-blinded hiding commitment (32 B) | Updates committed balance to `balance - amount` with fresh 256-bit `nextTreasuryBlindingFactor`, breaking linkability across settlements. |
-| `updateGovernancePolicy` | 257–259 | `disclose(newMaxSettlement)`, `disclose(newMinReserve)`, `disclose(newStatus)` | Governance ledger fields | Public policy parameters & circuit-breaker flag | Governance parameters are public invariants by design; `operatorSecretKey` remains strictly private. |
-| `verifyReceiptOnChain` | 268 | `disclose(receiptId)` | `auditReceipts.member(...)` | Boolean membership result | Read-only public lookup against an already-public map key. |
-
----
-
-## 3. Selective-Disclosure Tier Comparison
-
-| Disclosure Tier | `budgetTierCap` | `jurisdictionRoot` | `auditorTag` | Intended Consumer |
-|---|:---:|:---:|:---:|---|
-| `MinimalSolvency` (`0`) | Public ceiling | Public historic root | `0x00...00` (zeroed) | Public DAO tokenholders verifying solvency & non-sanctioned compliance only |
-| `ThresholdBand` (`1`) | Public band cap | Public historic root | `0x00...00` (zeroed) | Budget committees tracking spend bands without vendor correlation |
-| `AuditorScoped` (`2`) | Public band cap | Public historic root | `H("proofvault:auditor:v1", vkHash, commit)` | External CPA / regulatory auditors proving receipt scope via viewing key |
+| Circuit | Line | Disclosed Expression | Ledger Sink | Leakage & Justification |
+|---|---:|---|---|---|
+| `constructor` | 134 | `disclose(initOperatorPk)` | `treasuryAuthority` | One-way 32-byte digest of `operatorSecretKey`. Anchor for private operator proofs. |
+| `constructor` | 135 | `disclose(initAuditorCommitment)` | `authorizedAuditorCommitment` | Second-level digest `H("proofvault:auditor-reg:v2", auditorVkHash)`. Prevents operators from tagging `AuditorScoped` receipts with arbitrary unregistered keys while keeping `auditorVkHash` secret so public observers cannot recompute `auditorTag`. |
+| `constructor` | 136 | `disclose(initBalanceCommitment)` | `treasuryBalanceCommitment` | Hiding `persistentCommit<Uint<64>>(balance, salt)`. Note: constructor does not open the commitment; opening occurs on the first `proveTreasurySolvency` or `settleConfidentialInvoice` call. |
+| `constructor` | 137 | `disclose(maxSingleSettlement)` | `policyMaxSingleSettlement` | Public governance spending ceiling (`Uint<64>`). |
+| `constructor` | 138 | `disclose(minReserveFloor)` | `policyMinReserveFloor` | Public governance solvency floor (`Uint<64>`). |
+| `registerApprovedJurisdiction` | 153 | `disclose(jurisdictionDigest)` | `approvedJurisdictions.insert(...)` | Approved jurisdiction allowlist is intentionally public policy. Which leaf matched a settlement stays private within the registered tree. |
+| `proveTreasurySolvency` | 177 | `disclose(attestation)` | `lastSolvencyAttestation` + return | Operator-authenticated digest `H("proofvault:solvency:v1", commitment, H(claimedMinFloor))`. Persisted in ledger state so indexers can verify past solvency claims. |
+| `proveTreasurySolvency` | 179 | `disclose(claimedMinFloor)` | `lastSolvencyFloor` | Public threshold proved by the operator (`balance >= claimedMinFloor`). Exact balance and margin above floor stay hidden. |
+| `settleConfidentialInvoice` | 207 | `disclose(tier)` | `AuditReceipt.disclosureTier` | 2-bit enum (`0`, `1`, or `2`). Enforces distinct cap and auditor-tag rules on-chain. |
+| `settleConfidentialInvoice` | 208 | `disclose(budgetTierCap)` | `AuditReceipt.budgetTierCap` | Public upper bound (`amount < budgetTierCap` strictly). Under `MinimalSolvency`, forced equal to `policyMaxSingleSettlement`; under `ThresholdBand`, forced strictly below `policyMaxSingleSettlement`. |
+| `settleConfidentialInvoice` | 233 | `disclose(computedRoot)` | `approvedJurisdictions.checkRoot(...)` | Already-public root of `approvedJurisdictions`; reveals which tree snapshot was active, not which leaf matched. |
+| `settleConfidentialInvoice` | 244 | `disclose(nullifier)` | `usedInvoiceNullifiers` + `AuditReceipt.nullifier` | Secret-keyed 32-byte PRF output `H("proofvault:nullifier:v2", H("proofvault:nullifier-salt:v2", opSk), vendorId, lineItemsHash)`. Prevents double-settlement without allowing offline dictionary attacks over vendor names or cross-vault correlation. |
+| `settleConfidentialInvoice` | 254 | `disclose(invoiceCommitment)` | `AuditReceipt.invoiceCommitment` | Salted `persistentCommit` binding `(vendorId, lineItemsHash, H(amount), jLeaf)` under 256-bit `invoiceSalt`. Binding `jLeaf` prevents opening an approved leaf while committing a different country. |
+| `settleConfidentialInvoice` | 257 | `disclose(computedRoot.field)` | Hashed into `AuditReceipt.jurisdictionRoot` | Public historic tree root field bound to the receipt. |
+| `settleConfidentialInvoice` | 275 | `disclose(rawAuditorTag)` | `AuditReceipt.auditorTag` (`AuditorScoped` only) | Secret-keyed MAC `H("proofvault:auditor:v1", vkHash, invoiceCommitment)` where `vkHash` is proven to hash to `authorizedAuditorCommitment`. Zeroed (`0x00..00`) under `MinimalSolvency` and `ThresholdBand`. |
+| `settleConfidentialInvoice` | 278 | `disclose(receiptId)` | `auditReceipts` map key + return | Deterministic hash of `(tag, publicInvoiceCommitment, publicNullifier)`. Derived strictly from already-public commitments. |
+| `settleConfidentialInvoice` | 290 | `disclose(nextCommitment)` | `treasuryBalanceCommitment` | Re-blinded `persistentCommit` of `balance - amount` under a fresh `nextTreasuryBlindingFactor != treasuryBlindingFactor`. |
+| `updateGovernancePolicy` | 323–325 | `disclose(newMaxSettlement)`, `disclose(newMinReserve)`, `disclose(newStatus)` | Governance ledger fields | Public policy limits and pause flag; `operatorSecretKey` stays private. |
+| `verifyReceiptOnChain` | 334 | `disclose(receiptId)` | `auditReceipts.member(...)` | Convenience public membership check on an already-public map key. |
 
 ---
 
-## 4. Trusted vs. Trustless Role Matrix (Honest Threat Model)
+## 3. Selective-Disclosure Tiers (Circuit-Enforced Rules in v2.1)
 
-| Actor | What They Learn | What Remains Hidden From Them | Trust Assumptions & Cryptographic Guarantees |
+| Disclosure Tier | Circuit Rule on `budgetTierCap` | Circuit Rule on `auditorTag` | What an Observer Learns |
 |---|---|---|---|
-| **Treasury Operator** (DAO multisig / finance lead) | All private witnesses (`operatorSecretKey`, exact balance, vendor IDs, line items, amounts, country codes) | Nothing within their own vault | **Cryptographically constrained** by ZK circuits: cannot forge solvency, cannot exceed `policyMaxSingleSettlement`, cannot settle to unlisted jurisdictions, cannot double-spend a nullifier, and cannot bypass a `Paused` circuit breaker. **Operationally trusted** to bind off-chain fiat/bank wires or external token rails to the exact `invoiceAmount` committed on-chain until Phase 2 Zswap native shielded transfers are enabled. |
-| **External Scoped Auditor** | Public ledger state + exported JSON receipt + knowledge of `auditorViewingKey` | Exact treasury balance, exact invoice amounts, vendor identities, line items, and country codes (unless selectively shared off-chain to open `invoiceCommitment`) | **Trustless verification** via `verifyAuditPackageAgainstLedger()` and Midnight Indexer GraphQL state readback. Cannot forge receipts, cannot claim oversight of receipts scoped to a different viewing key, and cannot alter `budgetTierCap` without failing on-chain immutability checks. |
-| **Counterparty / Vendor** | Their own invoice details and receipt reference | Treasury's total balance, other vendors' payouts, other vendors' jurisdictions, and operator secret key | **Trustless privacy isolation** from peer vendors. Can independently verify that their settlement receipt was anchored on Midnight via `verifyReceiptOnChain(receiptId)` without seeing sibling vendor pricing. |
-| **Public Observer / DAO Delegate** | Commitments, roots, nullifiers, `budgetTierCap`, `settledInvoiceCount`, `currentEpoch`, `vaultStatus`, and solvency floor attestations | Exact treasury balance, exact invoice amounts, all counterparty identities, line items, ISO country codes, and auditor viewing keys | **Zero-wallet, zero-trust verification** directly against Midnight Indexer GraphQL (`AuditTab` / `npm run verify:onchain`). |
-| **Midnight Validators & Indexer** | Public ledger transitions & ZK proofs only | All 11 private witnesses | **Trustless soundness** via Midnight Ledger 9 SNARK verification (`zkir-3.2.1`). |
-| **Midnight Proof Server** | Receives private witnesses during local proof generation | N/A if self-hosted locally (`localhost:6300`) | **Deployment rule:** Institutional operators MUST run the Proof Server inside their own VPC or local machine (`http://127.0.0.1:6300`) or use Lace/1AM's delegated `getProvingProvider()`. Never send production witnesses to an untrusted third-party prover. |
+| `MinimalSolvency` (`0`) | Must equal `policyMaxSingleSettlement` (cannot leak a narrow custom cap); `amount < publicCap` strictly | Deterministically zeroed (`0x00..00`) | Payout was below the global vault ceiling, reserves stayed above floor, and counterparty belongs to an approved jurisdiction |
+| `ThresholdBand` (`1`) | Must satisfy `amount < publicCap < policyMaxSingleSettlement` strictly | Deterministically zeroed (`0x00..00`) | Payout fell strictly below a narrower budget band cap (e.g., `< $25k`, `< $50k`, `< $100k`), with zero auditor linkage |
+| `AuditorScoped` (`2`) | Must satisfy `amount < publicCap <= policyMaxSingleSettlement` strictly | `H("proofvault:auditor:v1", vkHash, invoiceCommitment)` with `deriveAuditorCommitment(vkHash) == authorizedAuditorCommitment` | Same compliance invariants plus a verifiable MAC bound to the vault's registered external auditor |
 
 ---
 
-## 5. Residual Metadata & Mitigations
+## 4. Actor Threat Model (What Is Enforced vs. What Is Trusted)
 
-1. **Coarse-Grained Spend Band Leakage (`budgetTierCap`)**: Publishing `budgetTierCap` reveals an upper bound on an invoice (e.g., `<= $50,000`). **Mitigation:** Standardize DAO payouts into coarse power-of-two or institutional bands (`$25k`, `$50k`, `$100k`, `$150k`) so distinct vendor rates share identical anonymity sets.
-2. **Low-Entropy Vendor/Scope Inputs**: If an adversary guesses both `vendorId` and `lineItemsHash`, they could recompute `deriveNullifier(vendorId, lineItemsHash)`. **Mitigation:** ProofVault hashes structured domain-separated identifiers (`proofvault:vendor:v1`, `proofvault:lineitems:v1`) and recommends including a high-entropy contract nonce inside `invoiceReference` in production ERP adapters.
-3. **Timing Correlation**: On-chain settlement timestamps correlate with block inclusion time. **Mitigation:** Batch invoice settlements at fixed weekly/epoch windows rather than immediately upon vendor submission.
+| Actor | What They See | What the Circuit Enforces | Explicit Operational Trust Assumption |
+|---|---|---|---|
+| **Treasury Operator** | All 11 private witnesses in cleartext locally | Cannot forge solvency above committed balance, cannot pay `>= budgetTierCap`, cannot exceed `policyMaxSingleSettlement`, cannot drain below `policyMinReserveFloor`, cannot swap `jurisdictionLeaf` vs Merkle path, cannot settle an unlisted country, cannot replay a nullifier, cannot forge an unregistered auditor key under `AuditorScoped`, and cannot reuse `treasuryBlindingFactor`. | **Operator sees cleartext** and is trusted to match off-chain fiat/bank wires (or external transfers) to the committed `invoiceAmount` and to back up `nextTreasuryBlindingFactor` safely (losing the salt blocks future commitment openings). Native Zswap shielded payouts are planned for v3. |
+| **Registered External Auditor** | Public ledger state, exported receipt JSON, and `auditorViewingKey` | Verifies `deriveAuditorCommitment(vkHash) == authorizedAuditorCommitment`, `auditorTag`, receipt field immutability, keyed nullifier membership, and Merkle root history. | Does not see exact amounts, vendor identities, or line items unless the operator selectively opens `invoiceCommitment` off-chain during a dispute. |
+| **Counterparty / Vendor** | Their own invoice and receipt ID | Isolated from peer vendor payouts, peer countries, and total treasury reserves; cannot grind other vendors' nullifiers without `operatorSecretKey`. | Can verify receipt existence via `verifyReceiptOnChain(receiptId)` or the Midnight Indexer GraphQL API. |
+| **Public Observer / DAO Delegate** | Commitments, keyed nullifiers, historic Merkle root, tier-enforced caps, persisted solvency records, epoch, and pause status | Verifies Ledger 9 SNARK state transitions directly via Midnight Indexer GraphQL (`Audit Portal` or `npm run verify:onchain`) without a wallet. | Does not learn exact balance, exact payout, vendor identity, scope, or country code (within the anonymity set of registered leaves). |
+| **Midnight Proof Server** | Receives private witnesses during proof generation | N/A (executes ZKIR prover locally) | Operators must run Proof Server `9.0.2` locally (`127.0.0.1:6300`) or inside their own VPC — never submit production witnesses to an untrusted remote prover. |
 
 ---
 
-## 6. Automated Enforcement Proof
+## 5. Known Limitations & Honest Boundaries (v2.1)
 
-ProofVault backs every claim above with deterministic automated tests (`npm test`):
-- **Serialized On-Chain State Privacy Audit (`tests/compact-contract.test.ts`)**: Inspects raw `contractState.serialize()` bytes from `@midnight-ntwrk/compact-runtime@0.21.0` after settlement and proves zero occurrences of `operatorSecretKey`, `invoiceVendorId`, `invoiceLineItemsHash`, or blinding salts.
-- **Exported Audit JSON Zero-PII Check (`tests/proof-engine.test.ts` & `tests/mutation-audit.test.ts`)**: Verifies `buildExportedAuditPackage()` strips `localMemo`, vendor display names, and exact invoice amounts across randomized `fast-check` fuzz runs.
-- **18/18 Guard-Deletion Mutation Audit (`tests/mutation-audit.test.ts`)**: Programmatically strips every single `assert(...)` guard in `contracts/proofvault.compact` from the compiled runtime JS one by one and confirms our adversarial test suite detects 100% (`18/18`) of guard deletions.
+1. **Append-Only Jurisdiction Tree (`HistoricMerkleTree<8, Bytes<32>>`):** `approvedJurisdictions` supports historical roots for concurrent async proof generation, and leaves are not revocable in v2.1. If a jurisdiction is later sanctioned, an older root remains accepted by `checkRoot`. Production v3 will replace `checkRoot` with a revocable current-epoch accumulator.
+2. **Anonymity Set Size on Live Preview vs. Simulator:** The live Midnight Preview v2.0 deployment (`0x9ae57d40...4228bc8`) has 2 registered leaves (`iso:CH`, `iso:SG`), which is a 1-of-2 jurisdiction anonymity set. The browser simulator seeds 8 leaves (1-of-8). Production deployments should seed the full non-sanctioned ISO-3166 allowlist before settling invoices.
+3. **Single Operator Authority Key:** `treasuryAuthority` is a single `Bytes<32>` key hash in v2.1 without on-chain key rotation or M-of-N threshold approval. Multi-party governance currently relies on holding `operatorSecretKey` inside an HSM/MPC quorum; native M-of-N Jubjub Schnorr threshold circuits are scoped for v3.
+4. **Browser Demo vs. Compiled Compact Runtime:** The static GitHub Pages web app runs a **SHA-256 Deterministic Circuit Simulator** (`src/midnight/proofEngine.ts`) to make all 24 invariants and the Adversarial Breaker Lab interactive with zero Docker or wallet setup. Midnight's actual Compact circuit (`contracts/managed/proofvault/`) uses Compact's native `persistentHash`/`persistentCommit` builtins (`@midnight-ntwrk/compact-runtime@0.21.0`) and is exercised in `npm test` and live on Midnight Preview.
+5. **Scope of Guard-Mutation Testing:** `tests/mutation-audit.test.ts` deletes all 24 user-authored `__compactRuntime.assert(...)` calls one by one inside the compiled JS runtime (`contracts/managed/proofvault/contract/index.js`) and confirms 24/24 targeted exploits succeed when their guard is removed. This proves 100% guard coverage at the compiled JS runtime level; it does not mutate ZKIR gate constraints directly.

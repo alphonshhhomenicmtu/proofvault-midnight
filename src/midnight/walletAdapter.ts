@@ -50,7 +50,6 @@ export function discoverMidnightWallets(): DiscoveredWallet[] {
     });
   }
 
-  // Prefer Lace and 1AM first for deterministic institutional UX
   const order: Record<DiscoveredWallet["brand"], number> = { lace: 0, "1am": 1, other: 2 };
   found.sort((a, b) => order[a.brand] - order[b.brand]);
   return found;
@@ -91,7 +90,7 @@ export async function connectMidnightWallet(
         serviceUris: null,
         lastDispatch: null,
         error:
-          "No Midnight browser wallet (Lace or 1AM) detected on window.midnight. Stay in Local Proof Engine mode + Live Walletless Indexer Verifier for zero-setup evaluation."
+          "No Midnight browser wallet (Lace or 1AM) detected on window.midnight. Use the browser SHA-256 Circuit Simulator and the walletless Midnight Preview Indexer reader below."
       }
     };
   }
@@ -224,22 +223,22 @@ export interface WalletDispatchRequest {
   walletName: string;
   networkId: MidnightNetworkId;
   proverServerUri?: string;
-  /** Serialized unsealed Ledger 9 transaction hex when a live prover built the ZK tx */
+  /** Serialized unsealed Ledger 9 transaction hex when a live Proof Server built the ZK tx */
   unsealedTxHex?: string;
-  /** Deterministic receipt/attestation commitment hex for wallet signData endorsement */
+  /** Local simulator receipt ID hex for wallet connectivity signData check */
   commitmentPayloadHex: string;
   payFees?: boolean;
 }
 
 /**
- * Dispatches a ProofVault circuit call through an active @midnight-ntwrk/dapp-connector-api v4.1
- * session (Lace Midnight or 1AM Wallet).
+ * Interfaces with an active @midnight-ntwrk/dapp-connector-api v4.1 session (Lace or 1AM).
  *
- * - If an unsealed proved transaction hex is supplied, executes the full on-chain pipeline:
- *   connectedApi.balanceUnsealedTransaction(tx, { payFees }) -> connectedApi.submitTransaction(balanced.tx).
- * - Otherwise (e.g., static GitHub Pages without a local Docker proof server), endorses the
- *   deterministic AuditReceipt commitment via connectedApi.signData() so the connected wallet
- *   cryptographically binds the operator attestation without leaving the browser.
+ * - Path A (Live Prover Tx): when `unsealedTxHex` is built from the compiled Contract class
+ *   and a Midnight Proof Server, balances DUST fees via `balanceUnsealedTransaction` and calls
+ *   `submitTransaction`.
+ * - Path B (Static Simulator Wallet Check): in the static browser demo (no local Proof Server),
+ *   runs `signData()` over the local SHA-256 receipt ID as a wallet connectivity & signature check
+ *   (does not broadcast a Midnight Ledger 9 contract transaction).
  */
 export async function dispatchWalletTransaction(
   connectedApi: ConnectedAPI | undefined,
@@ -250,7 +249,7 @@ export async function dispatchWalletTransaction(
     ? `HTTP Prover (${request.proverServerUri})`
     : typeof connectedApi?.getProvingProvider === "function"
       ? "Wallet Delegated ProvingProvider (dapp-connector-api v4.1)"
-      : "Local Circuit-Equivalence Engine";
+      : "SHA-256 Browser Circuit Simulator";
 
   if (!connectedApi) {
     return {
@@ -262,7 +261,7 @@ export async function dispatchWalletTransaction(
       submittedOnChain: false,
       detail: "No active ConnectedAPI wallet handle.",
       timestampIso,
-      error: "Connect Lace or 1AM wallet before dispatching."
+      error: "Connect Lace or 1AM wallet before signing."
     };
   }
 
@@ -303,7 +302,7 @@ export async function dispatchWalletTransaction(
     }
   }
 
-  // Path B: Cryptographic wallet signData endorsement of the zero-knowledge receipt commitment
+  // Path B: Wallet connectivity & signature check over local SHA-256 receipt ID
   if (typeof connectedApi.signData === "function") {
     try {
       const sig = await connectedApi.signData(request.commitmentPayloadHex, {
@@ -320,7 +319,7 @@ export async function dispatchWalletTransaction(
         signatureHex: sig.signature,
         verifyingKeyHex: sig.verifyingKey,
         signatureScheme: sig.scheme ?? "schnorr_bip340",
-        detail: `Signed ${request.circuitName}() commitment via ${request.walletName} (${sig.scheme ?? "schnorr_bip340"}). Provide a live proof server & deployed contract address to broadcast on-chain.`,
+        detail: `Wallet connectivity check passed (${request.walletName} signed local SHA-256 receipt ID via ${sig.scheme ?? "schnorr_bip340"}). Live on-chain contract submission requires an unsealed Ledger 9 tx from the compiled Contract class and Proof Server 9.0.2.`,
         timestampIso
       };
     } catch (err) {
@@ -331,7 +330,7 @@ export async function dispatchWalletTransaction(
         networkId: request.networkId,
         proverPath,
         submittedOnChain: false,
-        detail: "Wallet signData attestation rejected.",
+        detail: "Wallet signData check declined.",
         timestampIso,
         error: err instanceof Error ? err.message : "User declined wallet signature."
       };

@@ -10,7 +10,7 @@
     "connectorPackage": "@midnight-ntwrk/dapp-connector-api@4.1.0"
   },
   "status": "ready-awaiting-faucet-funding-and-blockfrost-token",
-  "statusNote": "Legacy indexer.preprod.midnight.network and rpc.preprod.midnight.network were decommissioned on 2026-10-09 and migrated to Blockfrost (requiring BLOCKFROST_PROJECT_ID). Additionally, https://faucet.preprod.midnight.network/ is gated by interactive Cloudflare Turnstile human verification. Set BLOCKFROST_PROJECT_ID + MIDNIGHT_WALLET_SEED + local Proof Server (localhost:6300) and run `npm run deploy:preprod` to broadcast live.",
+  "statusNote": "Legacy indexer.preprod.midnight.network and rpc.preprod.midnight.network were decommissioned on 2026-10-09 and migrated to Blockfrost (requiring BLOCKFROST_PROJECT_ID). Additionally, https://faucet.preprod.midnight.network/ is gated by interactive Cloudflare Turnstile human verification. Set BLOCKFROST_PROJECT_ID + MIDNIGHT_WALLET_SEED + local Proof Server (localhost:6300) and run `npm run deploy:preprod` to broadcast ProofVault v2.1 live.",
   "endpoints": {
     "indexerGraphql": "https://indexer.midnight-preprod.blockfrost.io/api/v4/graphql",
     "legacyIndexerDecommissioned": "https://indexer.preprod.midnight.network/api/v3/graphql",
@@ -21,8 +21,9 @@
     "migrationGuide": "https://docs.midnight.network/guides/networks-and-environments#blockfrost-the-mainnet-indexer-and-rpc-provider"
   },
   "compiledArtifacts": {
-    "sourceSha256": "f6f74e26e7a0871970a821ce99b53936b45c4ceb5525b81654b34992c9a7cc68",
-    "contractJsSha256": "dbb62db0294d9298ac0983aa3ee26469e3158160970e85e210c0682fb5eb8e91"
+    "version": "2.1.0",
+    "sourceSha256": "fc0ac33e60d3c69769b9d501a5a5eee178fcd49ed44360675b87a852625f4a2a",
+    "contractJsSha256": "b32e86c309610e9fd16804a2fdd1465b22218b24790acf17ab0baea83f3e46fc"
   },
   "deployment": {
     "contractAddress": null,

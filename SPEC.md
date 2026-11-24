@@ -1,4 +1,4 @@
-# ProofVault — AKINDO Midnight Buildathon (Wave 3) Technical Specification
+# ProofVault v2.1 — AKINDO Midnight Buildathon (Wave 3) Technical Specification
 
 ## 1. Hackathon & Wave 3 Parameters
 
@@ -7,85 +7,57 @@
 - **Active Wave:** Wave 3 (Final Wave)
 - **Wave 3 Submission Deadline:** `2026-11-30 15:00 UTC` (`2026-11-30 23:00 UTC+8`)
 - **Wave 3 Judging Period:** `2026-12-01` to `2026-12-15`
-- **Reward Pool:** `4,000–5,000 USDT` (Grant Pool `12,500 USDT` total across 3 Waves, distributed proportionally by judge score; top teams also invited to Midnight Build Club)
-- **License Requirement (Mandatory):** **Apache License 2.0** for all newly developed Midnight-related code including Compact contracts and evaluation code.
-- **GitHub Metadata Requirement (Mandatory):** Public repository tagged with topic/label `midnightntwrk`.
+- **Wave 3 Prize Pool:** `US$5,000` (top teams invited to Midnight Build Club)
+- **License Requirement (Mandatory):** **Apache License 2.0** for all Midnight Compact contracts and evaluation code.
+- **GitHub Metadata Requirement (Mandatory):** Public repository tagged with `midnightntwrk`.
 
-## 2. Official Judging Rubric & Technical Gates
+## 2. Official Technical Gates & Rubric Dimensions
 
-### Mandatory Technical Gate (Auto-Disqualification if Unmet)
-1. Public GitHub repository with the `midnightntwrk` topic tag.
-2. At least one **Compact smart contract that compiles cleanly** with the official Compact compiler.
-3. Apache License 2.0 compliance for all Midnight contract and evaluation code.
-4. Clear `README.md` with setup, architecture, Midnight integration, and judge test instructions.
-5. Pitch slide deck + demo video / walkthrough script.
+### Mandatory Gates
+1. Public GitHub repository with topic `midnightntwrk`.
+2. At least one **Compact smart contract that compiles cleanly** with the official Compact compiler (`compactc 0.36.1`, language `0.28.0`).
+3. Apache License 2.0 compliance.
+4. Clear `README.md` with exact compile command, compiler output, disclosed vs. witness-kept split, architecture, and verification steps.
+5. Pitch slide deck (`docs/proofvault-deck.pdf`) and narrated demo video (`https://www.youtube.com/watch?v=2SAttW3TaCU`).
 
-### Weighted Evaluation Rubric
+### Evaluation Dimensions (AKINDO Wave Page)
 
-| Criterion | Weight | ProofVault Alignment |
-| --- | ---: | --- |
-| **Engineering & Implementation** | **40%** | Compiles cleanly under `compactc 0.36.1` (Compact language `0.28.0`, Ledger 9 / `zkir-3.2.1`), real `witness` private-state isolation, explicit `disclose()` audit boundary, `HistoricMerkleTree<8, Bytes<32>>` jurisdiction proofs, `persistentCommit` treasury solvency commitments, `Set<Bytes<32>>` nullifier anti-replay, `@midnight-ntwrk/compact-runtime@0.21.0` + `@midnight-ntwrk/dapp-connector-api@4.1.0`. |
-| **Quality Assurance & Reliability** | **15%** | Comprehensive Vitest suite executing BOTH the **real compiled Compact contract runtime** (`@midnight-ntwrk/compact-runtime`) and the browser-side deterministic circuit-equivalence engine across positive flows, negative security guards (replay, reserve breach, unauthorized operator, sanctioned jurisdiction, paused vault), and on-chain privacy leakage audits. |
-| **Product & Vision** | **15%** | Targets Midnight's #1 flagship enterprise/DAO vertical (*Finance: prove solvency, transaction validity, and compliance without disclosing balances or counterparties*) via Confidential Invoice/Bounty Settlement & Selective-Disclosure Audit Receipts. |
-| **User Experience & Design** | **15%** | Dark privacy-terminal React/Vite dApp deployable on GitHub Pages (`base: './'`) featuring dual execution modes: **Lace Wallet (`window.midnight`)** for live Midnight networks AND **Local Proof Engine** so judges can run full cryptographic settlements and verify selective-disclosure receipts immediately with zero wallet setup. |
-| **Communication** | **10%** | Clean README with Mermaid dual-ledger ZK dataflow diagram, complete setup & test guide, 2-minute video demo script, pitch deck outline (`docs/PITCH_DECK.md`), and high-resolution Retina screenshots. |
-| **Business Development & Viability** | **5%** | Concrete GTM path for DAOs, Web3 treasury ops, institutional B2B contractors, and compliance auditors requiring FATF/OFAC non-sanction attestations without leaking vendor pricing or balance sheets. |
+| Dimension | ProofVault v2.1 Implementation |
+| --- | --- |
+| **Engineering & Implementation** | Compiles cleanly with `compactc 0.36.1` (`pragma language_version >= 0.28.0`, `zkir-3.2.1`). Uses 11 private witnesses, 21 audited `disclose()` sites, secret-keyed anti-replay nullifiers (`H(H(opSk), vendorId, lineItemsHash)`), jurisdiction-bound invoice commitments, strict `amount < budgetTierCap`, circuit-enforced `MinimalSolvency` / `ThresholdBand` / `AuditorScoped` differentiation, registered `authorizedAuditorCommitment`, authenticated persisted `proveTreasurySolvency`, and `nextSalt != currentSalt` freshness. Live v2.0 contract verified on Midnight Preview (`0x9ae57d40...4228bc8`, 6/6 `SucceedEntirely` txs). |
+| **Quality Assurance & Reliability** | **62/62 automated Vitest tests** across 5 suites: real compiled `@midnight-ntwrk/compact-runtime@0.21.0` execution, **24/24 compiled JS guard-deletion mutants killed** (`tests/mutation-audit.test.ts`), 7 `fast-check` property-based fuzz suites, serialized `ContractState` witness & raw `Uint<64>` zero-leak audits, and full Adversarial Breaker Lab test coverage. |
+| **Product & Vision** | Confidential DAO / foundation invoice and bounty settlement with selective-disclosure audit receipts across three concrete audience tiers (`MinimalSolvency`, `ThresholdBand`, `AuditorScoped`). |
+| **User Experience & Design** | Dark privacy-terminal React/Vite app on GitHub Pages (`base: './'`) featuring explicit runtime labeling (Browser SHA-256 Deterministic Circuit Simulator vs. compiled Compact runtime), 1-click **Adversarial Breaker Lab** (`Breaker Lab` tab), walletless live Midnight Preview Indexer GraphQL v4 reader, and Lace/1AM `@midnight-ntwrk/dapp-connector-api@4.1.0` support. |
+| **Communication** | De-slopped README with exact compile command/output, Mermaid dual-ledger diagram, line-by-line [`PRIVACY_BOUNDARY.md`](./PRIVACY_BOUNDARY.md) threat model and limitations, 10-slide PDF pitch deck, and 1080p narrated demo video. |
+| **Business Development & Viability** | Open-core Apache-2.0 contract paired with self-hosted VPC Proof Server & Safe/ERP adapters for DAOs, foundations, and Web3 audit firms. |
 
-## 3. Verified Midnight Toolchain & SDK Matrix (Ledger 9 Era)
+## 3. Verified Midnight Toolchain Matrix (Ledger 9)
 
 Verified locally on `aarch64-darwin` (`2026-11-24`):
 
 - **Compact CLI (`compact`):** `0.5.3`
 - **Compact Compiler (`compactc`):** `0.36.1` (`commit 7fa3a117c`, `2026-11-11`)
 - **Compact Language Version:** `0.28.0` (`pragma language_version >= 0.28.0;`)
-- **ZKIR Target:** `zkir-3.2.1` (`zkir-v3` binary included in toolchain)
+- **ZKIR Target:** `zkir-3.2.1`
 - **Compact Runtime (`@midnight-ntwrk/compact-runtime`):** `0.21.0`
 - **DApp Connector API (`@midnight-ntwrk/dapp-connector-api`):** `4.1.0`
-- **Midnight.js Contracts (`@midnight-ntwrk/midnight-js-contracts`):** `5.0.1`
-- **Lace Wallet Integration Pattern (v4.x):**
-  - Dynamic UUID provider discovery over `window.midnight` (`Object.entries(window.midnight ?? {})`), with graceful fallback for `window.midnight.mnLace`.
-  - Network-scoped session connection via `initialApi.connect(networkId)` (`'preprod' | 'preview' | 'mainnet' | 'undeployed'`).
-  - Provider URI discovery via `connectedApi.getConfiguration()` (`indexerUri`, `indexerWsUri`, `proverServerUri`, `substrateNodeUri`, `networkId`).
-  - Address queries via `connectedApi.getShieldedAddresses()`, `getUnshieldedAddress()`, and `getDustAddress()`.
+- **Midnight Preview Proof Server (used for live Preview txs):** `9.0.2`
 
-## 4. ProofVault Architecture & Dual-Ledger Privacy Model
+## 4. Exported Compact Circuits (`contracts/proofvault.compact` v2.1)
 
-### What Remains Strictly Private (Off-Chain Witness State)
-- `operatorSecretKey: Bytes<32>` — treasury controller secret key (never exposed on-chain)
-- `treasurySecretBalance: Uint<64>` — exact DAO/company treasury balance in USD cents
-- `treasuryBlindingFactor` / `nextTreasuryBlindingFactor: Bytes<32>` — cryptographic hiding salts for `persistentCommit`
-- `invoiceVendorId: Bytes<32>` — private counterparty / contributor identifier
-- `invoiceLineItemsHash: Bytes<32>` — hash of confidential scope of work, deliverables, and line-item pricing
-- `invoiceAmount: Uint<64>` — exact payout amount
-- `invoiceSalt: Bytes<32>` — invoice commitment blinding factor
-- `jurisdictionLeaf: Bytes<32>` & `jurisdictionMerklePath: MerkleTreePath<8, Bytes<32>>` — counterparty's ISO jurisdiction code and Merkle inclusion proof (proves non-sanctioned eligibility without disclosing which country)
-- `auditorViewingKeyHash: Bytes<32>` — optional auditor-specific viewing key commitment
-
-### What Is Published On-Chain (Public Midnight Ledger)
-- `treasuryAuthority: Bytes<32>` — domain-separated `persistentHash` of the operator key
-- `treasuryBalanceCommitment: Bytes<32>` — `persistentCommit<Uint<64>>(balance, salt)`
-- `policyMaxSingleSettlement: Uint<64>` & `policyMinReserveFloor: Uint<64>` — public DAO governance guardrails
-- `currentEpoch: Uint<64>` & `vaultStatus: VaultStatus` — vault lifecycle state
-- `approvedJurisdictions: HistoricMerkleTree<8, Bytes<32>>` — Merkle tree of compliant jurisdictions (supports historical roots for concurrent async transactions)
-- `usedInvoiceNullifiers: Set<Bytes<32>>` — deterministic anti-replay nullifiers preventing double settlement
-- `auditReceipts: Map<Bytes<32>, AuditReceipt>` — verifiable selective-disclosure compliance receipts
-- `settledInvoiceCount: Counter` — write-only monotonic settlement counter
-
-### Exported Compact Circuits (`contracts/proofvault.compact`)
-1. `constructor(initOperatorPk, initBalanceCommitment, maxSingleSettlement, minReserveFloor)` — boots the vault with initial governance guardrails and shielded balance commitment.
-2. `registerApprovedJurisdiction(jurisdictionDigest)` — operator-authorized insertion into `approvedJurisdictions` `HistoricMerkleTree`.
-3. `proveTreasurySolvency(claimedMinFloor)` — generates a verifiable on-chain solvency attestation proving committed balance `>= claimedMinFloor` and `>= policyMinReserveFloor` without revealing the exact balance.
-4. `settleConfidentialInvoice(budgetTierCap, tier)` — atomic ZK circuit proving: active vault, operator key ownership, treasury commitment opening, `0 < amount <= budgetTierCap <= policyMaxSingleSettlement`, post-settlement solvency (`balance - amount >= policyMinReserveFloor`), `HistoricMerkleTree` jurisdiction compliance, and unused nullifier; transitions `treasuryBalanceCommitment` and stores a selective-disclosure `AuditReceipt`.
-5. `updateGovernancePolicy(newMaxSettlement, newMinReserve, newStatus)` — operator-authenticated governance parameter rotation and circuit breaker toggle.
-6. `verifyReceiptOnChain(receiptId)` — public verification circuit returning whether a receipt exists in `auditReceipts`.
+1. `constructor(initOperatorPk, initBalanceCommitment, initAuditorCommitment, maxSingleSettlement, minReserveFloor)` — initializes operator authority digest, registered auditor commitment, initial shielded balance commitment, and public governance limits.
+2. `registerApprovedJurisdiction(jurisdictionDigest)` — operator-authorized append to `approvedJurisdictions: HistoricMerkleTree<8, Bytes<32>>`.
+3. `proveTreasurySolvency(claimedMinFloor)` — operator-authenticated solvency proof opening `treasuryBalanceCommitment`, asserting `balance >= max(policyMinReserveFloor, claimedMinFloor)`, and persisting `lastSolvencyAttestation`, `lastSolvencyFloor`, and `lastSolvencyEpoch` in ledger state.
+4. `settleConfidentialInvoice(budgetTierCap, tier)` — atomic settlement proving active vault, operator key, balance opening, strict `0 < amount < budgetTierCap <= policyMaxSingleSettlement`, post-settlement reserve floor, tier-specific cap constraints, bound Merkle jurisdiction (`jPath.leaf == jLeaf` + `jLeaf` inside `deriveInvoiceCommitment`), unused secret-keyed nullifier, registered auditor commitment (under `AuditorScoped`), and fresh `nextTreasuryBlindingFactor != treasuryBlindingFactor`.
+5. `updateGovernancePolicy(newMaxSettlement, newMinReserve, newStatus)` — operator-authenticated policy update, pause/resume toggle, and epoch bump.
+6. `verifyReceiptOnChain(receiptId)` — public map membership helper on `auditReceipts`.
 
 ## 5. Deliverables Checklist
-- [x] `SPEC.md` (this document)
+- [x] `SPEC.md` & `PRIVACY_BOUNDARY.md` (11 witnesses, 21 `disclose()` call sites, honest threat model)
 - [x] `LICENSE` (Apache License 2.0)
-- [x] `contracts/proofvault.compact` + compiled ZKIR/TS artifacts verified with `compactc 0.36.1` (all 5 circuits compiled with `.zkir`, `.bzkir`, `.prover`, `.verifier`)
-- [x] `src/midnight/` — Lace Wallet v4.1 connector (`@midnight-ntwrk/dapp-connector-api@4.1.0`) + deterministic local proof engine matching compiled Compact semantics
-- [x] `src/` — Dark privacy-terminal React/Vite frontend (4 views: Overview, Settle Invoice, Audit Portal, Compact Spec)
-- [x] `tests/` — Vitest unit, security, privacy-leakage, wallet connector, and real compiled Compact runtime integration tests (16/16 PASS)
-- [x] `dist/` — Production static bundle verified for GitHub Pages (`base: './'`)
-- [x] `docs/screenshots/` — 4 Retina screenshots (`2880x1800`) visually verified with zero clipping or overflow
-- [x] `README.md` + `docs/PITCH_DECK.md` — Mermaid ZK architecture diagram, judge quickstart, 2-minute demo script
+- [x] `contracts/proofvault.compact` (v2.1, 24 audited guards) + `compactc 0.36.1` compiled outputs (`contracts/managed/proofvault/`)
+- [x] Live Midnight Preview deployment (`0x9ae57d40331df50a9a30340d2f2a612f7e6cf8fa99112d11e630c7b3f4228bc8`, 6/6 `SucceedEntirely` txs, [`deploy/preview.json`](./deploy/preview.json))
+- [x] `src/midnight/adversarialLab.ts` & `src/components/BreakerLabTab.tsx` — interactive 1-click Adversarial Breaker Lab
+- [x] `tests/` — 62/62 Vitest tests passing (including 24/24 compiled JS guard-deletion mutants killed + 7 `fast-check` fuzz suites)
+- [x] `dist/` — Production static bundle verified on GitHub Pages (`https://alphonshhhomenicmtu.github.io/proofvault-midnight/`)
+- [x] `docs/proofvault-deck.pdf` — 10-slide widescreen visual pitch deck

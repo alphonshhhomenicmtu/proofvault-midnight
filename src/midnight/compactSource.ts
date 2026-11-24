@@ -14,12 +14,16 @@ export const COMPACT_CONTRACT_SOURCE = compactSourceRaw;
 
 export const COMPACT_COMPILER_METADATA = {
   contractFile: "contracts/proofvault.compact",
+  contractVersion: "v2.1 (Hardened Circuit)",
   compilerVersion: "0.36.1",
   compilerCommit: "7fa3a117c5e7efe9d2c51da04263e5f0b3509144",
   languageVersion: "0.28.0",
   runtimePackage: "@midnight-ntwrk/compact-runtime@0.21.0",
   connectorPackage: "@midnight-ntwrk/dapp-connector-api@4.1.0",
   ledgerTarget: "Ledger 9 (zkir-3.2.1)",
+  sourceSha256: "fc0ac33e60d3c69769b9d501a5a5eee178fcd49ed44360675b87a852625f4a2a",
+  contractJsSha256: "b32e86c309610e9fd16804a2fdd1465b22218b24790acf17ab0baea83f3e46fc",
+  auditedAssertGuards: 24,
   license: "Apache-2.0"
 } as const;
 
@@ -27,22 +31,22 @@ export const COMPILED_CIRCUIT_STATS: CompiledCircuitStat[] = [
   {
     name: "settleConfidentialInvoice",
     kind: "impure-zk",
-    zkirBytes: 20385,
-    bzkirBytes: 6159,
+    zkirBytes: 24040,
+    bzkirBytes: 7445,
     verifierKeyBytes: 2121,
-    proverKeyMb: "43.0 MB",
+    proverKeyMb: "86.0 MB",
     purpose:
-      "Atomic 7-guard ZK settlement: verifies operator key, opens balance commitment, enforces cap & reserve floor, proves HistoricMerkleTree jurisdiction membership, blocks nullifier replay, re-blinds treasury commitment, and writes a selective-disclosure AuditReceipt."
+      "Atomic settlement circuit: verifies operator key, opens balance commitment, enforces strict amount < cap <= ceiling and reserve floor, enforces distinct MinimalSolvency/ThresholdBand/AuditorScoped rules, binds jurisdictionLeaf into invoiceCommitment, derives secret-keyed nullifier, checks blinding salt freshness, and writes AuditReceipt."
   },
   {
     name: "proveTreasurySolvency",
     kind: "impure-zk",
-    zkirBytes: 3879,
-    bzkirBytes: 998,
+    zkirBytes: 6400,
+    bzkirBytes: 1755,
     verifierKeyBytes: 2121,
-    proverKeyMb: "10.8 MB",
+    proverKeyMb: "21.5 MB",
     purpose:
-      "Proves shielded treasury balance exceeds both governance reserve floor and a caller-requested threshold without revealing the exact balance."
+      "Operator-authenticated solvency proof that opens treasuryBalanceCommitment, enforces balance >= max(reserveFloor, claimedMinFloor), and persists lastSolvencyAttestation, lastSolvencyFloor, and lastSolvencyEpoch on-chain."
   },
   {
     name: "registerApprovedJurisdiction",
@@ -52,7 +56,7 @@ export const COMPILED_CIRCUIT_STATS: CompiledCircuitStat[] = [
     verifierKeyBytes: 2121,
     proverKeyMb: "10.8 MB",
     purpose:
-      "Operator-authenticated insertion of a compliant ISO-3166 jurisdiction digest into HistoricMerkleTree<8, Bytes<32>>."
+      "Operator-authenticated insertion of an approved ISO-3166 jurisdiction digest into HistoricMerkleTree<8, Bytes<32>>."
   },
   {
     name: "updateGovernancePolicy",
@@ -62,7 +66,7 @@ export const COMPILED_CIRCUIT_STATS: CompiledCircuitStat[] = [
     verifierKeyBytes: 2121,
     proverKeyMb: "10.8 MB",
     purpose:
-      "Operator-authenticated governance update for max settlement ceiling, minimum reserve floor, active/paused circuit breaker, and epoch increment."
+      "Operator-authenticated update for max settlement ceiling, minimum reserve floor, active/paused circuit breaker, and epoch counter."
   },
   {
     name: "verifyReceiptOnChain",
@@ -72,6 +76,6 @@ export const COMPILED_CIRCUIT_STATS: CompiledCircuitStat[] = [
     verifierKeyBytes: 1353,
     proverKeyMb: "0.2 MB",
     purpose:
-      "Public verification circuit confirming whether an AuditReceipt ID exists in the on-chain auditReceipts Map."
+      "Public map membership helper returning whether a receiptId exists in auditReceipts."
   }
 ];

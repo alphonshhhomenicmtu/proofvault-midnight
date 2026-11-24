@@ -41,11 +41,15 @@ export interface PublicLedgerSnapshot {
   compilerVersion: string;
   zkirVersion: string;
   treasuryAuthority: string;
+  authorizedAuditorCommitment: string;
   treasuryBalanceCommitment: string;
   policyMaxSingleSettlementCents: number;
   policyMinReserveFloorCents: number;
   currentEpoch: number;
   vaultStatus: VaultStatus;
+  lastSolvencyAttestation: string;
+  lastSolvencyFloorCents: number;
+  lastSolvencyEpoch: number;
   approvedJurisdictionsRoot: string;
   approvedJurisdictionsHistory: string[];
   approvedJurisdictions: JurisdictionEntry[];
@@ -56,6 +60,7 @@ export interface PublicLedgerSnapshot {
 
 export interface PrivateWitnessVault {
   operatorSecretKeyHex: string;
+  nullifierBlindingSaltHex: string;
   treasuryBalanceCents: number;
   treasuryBlindingFactorHex: string;
   auditorViewingKeyHex: string;
@@ -82,6 +87,10 @@ export interface InvoiceSettlementInput {
   disclosureTier: DisclosureTier;
   auditorViewingKeyOverride?: string;
   operatorSecretKeyOverride?: string;
+  /** Optional adversarial override to test mismatched jurisdictionLeaf vs MerkleTreePath */
+  jurisdictionLeafOverrideCode?: string;
+  /** Optional adversarial override to test reused nextTreasuryBlindingFactor */
+  nextBlindingFactorOverrideHex?: string;
 }
 
 export interface OnChainPayloadPreview {
@@ -120,6 +129,7 @@ export interface WalletDispatchResult {
 export interface InvoiceSettlementResult {
   ok: boolean;
   error?: string;
+  errorCode?: string;
   receipt?: AuditReceiptRecord;
   steps: ZkPipelineStep[];
   payloadPreview?: OnChainPayloadPreview;
@@ -130,6 +140,7 @@ export interface InvoiceSettlementResult {
 export interface SolvencyAttestation {
   ok: boolean;
   error?: string;
+  errorCode?: string;
   attestationDigest?: string;
   claimedMinFloorCents: number;
   treasuryBalanceCommitment: string;
@@ -140,7 +151,7 @@ export interface SolvencyAttestation {
 
 export interface ExportedAuditPackage {
   schema: "proofvault.selective-disclosure.v1";
-  network: MidnightNetworkId | "local-zk-engine";
+  network: MidnightNetworkId | "sha256-browser-simulator";
   contractAddress: string;
   receipt: AuditReceiptRecord;
   selectiveClaims: {
@@ -228,4 +239,52 @@ export interface VaultPresetScenario {
   badge: string;
   description: string;
   input: InvoiceSettlementInput;
+}
+
+export type AdversarialAttackId =
+  | "replay-used-nullifier"
+  | "forge-unapproved-jurisdiction"
+  | "exceed-policy-cap"
+  | "break-solvency-threshold"
+  | "forge-unregistered-auditor"
+  | "break-tier-cap-isolation";
+
+export interface AdversarialAttackScenario {
+  id: AdversarialAttackId;
+  code: string;
+  title: string;
+  primary: boolean;
+  summary: string;
+  targetCircuit: "settleConfidentialInvoice" | "proveTreasurySolvency";
+  expectedErrorCode: string;
+  compactGuardId: string;
+  compactAssertion: string;
+  mutationProof: string;
+}
+
+export interface AdversarialSubCheck {
+  label: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface AdversarialAttackReport {
+  attackId: AdversarialAttackId;
+  code: string;
+  title: string;
+  rejected: boolean;
+  errorCode: string;
+  guardMessage: string;
+  compactGuardId: string;
+  compactAssertion: string;
+  mutationProof: string;
+  stateUnchanged: boolean;
+  beforeCommitment: string;
+  afterCommitment: string;
+  beforeSettledCount: number;
+  afterSettledCount: number;
+  durationMs: number;
+  executedAtIso: string;
+  steps: ZkPipelineStep[];
+  subChecks: AdversarialSubCheck[];
 }

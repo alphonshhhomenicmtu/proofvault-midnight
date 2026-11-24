@@ -41,11 +41,15 @@ interface CompiledModuleShape {
   VaultStatus: { Active: number; Paused: number };
   ledger: (data: unknown) => {
     settledInvoiceCount: bigint;
+    authorizedAuditorCommitment: Uint8Array;
     treasuryBalanceCommitment: Uint8Array;
     policyMaxSingleSettlement: bigint;
     policyMinReserveFloor: bigint;
     currentEpoch: bigint;
     vaultStatus: number;
+    lastSolvencyAttestation: Uint8Array;
+    lastSolvencyFloor: bigint;
+    lastSolvencyEpoch: bigint;
     approvedJurisdictions: {
       findPathForLeaf: (leaf: Uint8Array) => runtime.MerkleTreePath<Uint8Array> | undefined;
     };
@@ -66,8 +70,16 @@ interface CompiledModuleShape {
   };
   pureCircuits: {
     deriveOperatorPublicKey: (sk: Uint8Array) => Uint8Array;
-    deriveNullifier: (vendorId: Uint8Array, lineItemsHash: Uint8Array) => Uint8Array;
-    deriveInvoiceCommitment: (vendorId: Uint8Array, lineItemsHash: Uint8Array, amount: bigint, salt: Uint8Array) => Uint8Array;
+    deriveAuditorCommitment: (auditorVkHash: Uint8Array) => Uint8Array;
+    deriveNullifierBlindingSalt: (sk: Uint8Array) => Uint8Array;
+    deriveNullifier: (nullifierSalt: Uint8Array, vendorId: Uint8Array, lineItemsHash: Uint8Array) => Uint8Array;
+    deriveInvoiceCommitment: (
+      vendorId: Uint8Array,
+      lineItemsHash: Uint8Array,
+      amount: bigint,
+      jurisdictionLeafDigest: Uint8Array,
+      salt: Uint8Array
+    ) => Uint8Array;
   };
 }
 
@@ -95,7 +107,7 @@ interface AssertCallSpan {
 
 /**
  * Balanced-parenthesis scanner finding every `__compactRuntime.assert(...)` call
- * in the real `compactc 0.36.1` output so each guard can be surgically deleted.
+ * in the real `compactc 0.36.1` JS interpreter output so each guard can be deleted individually.
  */
 function findCompiledAssertSpans(source: string): AssertCallSpan[] {
   const spans: AssertCallSpan[] = [];
@@ -143,11 +155,6 @@ function findCompiledAssertSpans(source: string): AssertCallSpan[] {
   return spans;
 }
 
-/**
- * Evaluates either the unmodified compiled contract JS (`disableSpanIndex = null`)
- * or a surgical single-guard-deleted mutant (`disableSpanIndex = span.index`)
- * against the real `@midnight-ntwrk/compact-runtime@0.21.0`.
- */
 function loadCompiledContract(disableSpanIndex: number | null): CompiledModuleShape {
   let code = COMPILED_JS;
   if (disableSpanIndex !== null) {
@@ -236,11 +243,13 @@ class MutantHarness {
       initialBalance?: bigint;
       maxSingleSettlement?: bigint;
       minReserveFloor?: bigint;
+      auditorCommitmentOverride?: Uint8Array;
       registerCH?: boolean;
     }
   ): Promise<MutantHarness> {
     const operatorSk = bytes32("mutant:operator:sk");
     const initialSalt = bytes32("mutant:salt:0");
+    const auditorVkHash = bytes32("mutant:auditor:vk");
     const initialBalance = overrides?.initialBalance ?? 200_000_000n;
     const maxSingleSettlement = overrides?.maxSingleSettlement ?? 15_000_000n;
     const minReserveFloor = overrides?.minReserveFloor ?? 50_000_000n;
@@ -249,6 +258,9 @@ class MutantHarness {
     const address = runtime.sampleContractAddress();
     const coinPk = runtime.toHex(bytes32("mutant:coin:pk"));
     const initOpPk = mod.pureCircuits.deriveOperatorPublicKey(operatorSk);
+    const initAuditorCommit =
+      overrides?.auditorCommitmentOverride ??
+      mod.pureCircuits.deriveAuditorCommitment(auditorVkHash);
     const initCommit = runtime.persistentCommit(UINT64_TYPE, initialBalance, initialSalt);
     const isoCH = bytes32("iso:CH");
 
@@ -263,13 +275,14 @@ class MutantHarness {
       invoiceSalt: bytes32("mutant:inv:salt:01"),
       jurisdictionLeaf: isoCH,
       jurisdictionMerklePath: emptyMerklePath(isoCH),
-      auditorViewingKeyHash: bytes32("mutant:auditor:vk")
+      auditorViewingKeyHash: auditorVkHash
     };
 
     const deployed = await contract.initialState(
       runtime.createConstructorContext(initPriv, coinPk),
       initOpPk,
       initCommit,
+      initAuditorCommit,
       maxSingleSettlement,
       minReserveFloor
     );
@@ -366,10 +379,8 @@ interface GuardMutationCase {
   id: string;
   circuit: string;
   expectedMessage: string;
-  /** Exact 0-based index among user-authored asserts in contracts/proofvault.compact */
   userGuardOrdinal: number;
   runAttack: (mod: CompiledModuleShape) => Promise<unknown>;
-  /** True only for explicit underflow pre-guard backed by compiler's own u64 subtraction check */
   fallsThroughToCompilerUnderflow?: boolean;
 }
 
@@ -383,49 +394,67 @@ const GUARD_MUTATION_CASES: GuardMutationCase[] = [
   },
   {
     id: "G02",
+    circuit: "constructor",
+    expectedMessage: "Authorized auditor commitment must be non-zero",
+    userGuardOrdinal: 1,
+    runAttack: (mod) =>
+      MutantHarness.boot(mod, { auditorCommitmentOverride: new Uint8Array(32), registerCH: false })
+  },
+  {
+    id: "G03",
     circuit: "registerApprovedJurisdiction",
     expectedMessage: "Unauthorized treasury operator",
-    userGuardOrdinal: 1,
+    userGuardOrdinal: 2,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       return h.registerJurisdiction(bytes32("iso:FR"), { operatorSecretKey: bytes32("attacker:sk") });
     }
   },
   {
-    id: "G03",
+    id: "G04",
+    circuit: "proveTreasurySolvency",
+    expectedMessage: "Unauthorized treasury operator",
+    userGuardOrdinal: 3,
+    runAttack: async (mod) => {
+      const h = await MutantHarness.boot(mod);
+      return h.proveSolvency(100_000_000n, { operatorSecretKey: bytes32("attacker:sk") });
+    }
+  },
+  {
+    id: "G05",
     circuit: "proveTreasurySolvency",
     expectedMessage: "Treasury commitment mismatch",
-    userGuardOrdinal: 2,
+    userGuardOrdinal: 4,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       return h.proveSolvency(100_000_000n, { treasurySecretBalance: 999_000_000n });
     }
   },
   {
-    id: "G04",
+    id: "G06",
     circuit: "proveTreasurySolvency",
     expectedMessage: "Treasury below governance reserve floor",
-    userGuardOrdinal: 3,
+    userGuardOrdinal: 5,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod, { initialBalance: 40_000_000n, minReserveFloor: 50_000_000n });
       return h.proveSolvency(10_000_000n);
     }
   },
   {
-    id: "G05",
+    id: "G07",
     circuit: "proveTreasurySolvency",
     expectedMessage: "Treasury below requested solvency floor",
-    userGuardOrdinal: 4,
+    userGuardOrdinal: 6,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       return h.proveSolvency(250_000_000n);
     }
   },
   {
-    id: "G06",
+    id: "G08",
     circuit: "settleConfidentialInvoice",
     expectedMessage: "Vault is currently paused",
-    userGuardOrdinal: 5,
+    userGuardOrdinal: 7,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       await h.updatePolicy(15_000_000n, 50_000_000n, mod.VaultStatus.Paused);
@@ -433,10 +462,10 @@ const GUARD_MUTATION_CASES: GuardMutationCase[] = [
     }
   },
   {
-    id: "G07",
+    id: "G09",
     circuit: "settleConfidentialInvoice",
     expectedMessage: "Unauthorized treasury operator",
-    userGuardOrdinal: 6,
+    userGuardOrdinal: 8,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       return h.settle(5_000_000n, mod.DisclosureTier.AuditorScoped, {
@@ -445,10 +474,10 @@ const GUARD_MUTATION_CASES: GuardMutationCase[] = [
     }
   },
   {
-    id: "G08",
+    id: "G10",
     circuit: "settleConfidentialInvoice",
     expectedMessage: "Treasury commitment mismatch",
-    userGuardOrdinal: 7,
+    userGuardOrdinal: 9,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       return h.settle(5_000_000n, mod.DisclosureTier.AuditorScoped, {
@@ -457,40 +486,41 @@ const GUARD_MUTATION_CASES: GuardMutationCase[] = [
     }
   },
   {
-    id: "G09",
+    id: "G11",
     circuit: "settleConfidentialInvoice",
     expectedMessage: "Invoice amount must be greater than zero",
-    userGuardOrdinal: 8,
+    userGuardOrdinal: 10,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       return h.settle(5_000_000n, mod.DisclosureTier.ThresholdBand, { invoiceAmount: 0n });
     }
   },
   {
-    id: "G10",
-    circuit: "settleConfidentialInvoice",
-    expectedMessage: "Invoice exceeds declared budget tier cap",
-    userGuardOrdinal: 9,
-    runAttack: async (mod) => {
-      const h = await MutantHarness.boot(mod);
-      return h.settle(1_000_000n, mod.DisclosureTier.ThresholdBand, { invoiceAmount: 2_500_000n });
-    }
-  },
-  {
-    id: "G11",
-    circuit: "settleConfidentialInvoice",
-    expectedMessage: "Budget tier exceeds governance ceiling",
-    userGuardOrdinal: 10,
-    runAttack: async (mod) => {
-      const h = await MutantHarness.boot(mod);
-      return h.settle(20_000_000n, mod.DisclosureTier.ThresholdBand, { invoiceAmount: 2_000_000n });
-    }
-  },
-  {
     id: "G12",
     circuit: "settleConfidentialInvoice",
-    expectedMessage: "Insufficient treasury balance",
+    expectedMessage: "Invoice must be strictly below declared budget tier cap",
     userGuardOrdinal: 11,
+    runAttack: async (mod) => {
+      const h = await MutantHarness.boot(mod);
+      // Tests strict cap > amount boundary (amount == cap must be rejected)
+      return h.settle(2_000_000n, mod.DisclosureTier.ThresholdBand, { invoiceAmount: 2_000_000n });
+    }
+  },
+  {
+    id: "G13",
+    circuit: "settleConfidentialInvoice",
+    expectedMessage: "Budget tier exceeds governance ceiling",
+    userGuardOrdinal: 12,
+    runAttack: async (mod) => {
+      const h = await MutantHarness.boot(mod);
+      return h.settle(20_000_000n, mod.DisclosureTier.AuditorScoped, { invoiceAmount: 2_000_000n });
+    }
+  },
+  {
+    id: "G14",
+    circuit: "settleConfidentialInvoice",
+    expectedMessage: "Insufficient treasury balance",
+    userGuardOrdinal: 13,
     fallsThroughToCompilerUnderflow: true,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod, {
@@ -498,27 +528,47 @@ const GUARD_MUTATION_CASES: GuardMutationCase[] = [
         minReserveFloor: 0n,
         maxSingleSettlement: 15_000_000n
       });
-      return h.settle(5_000_000n, mod.DisclosureTier.MinimalSolvency, { invoiceAmount: 2_000_000n });
+      return h.settle(15_000_000n, mod.DisclosureTier.MinimalSolvency, { invoiceAmount: 2_000_000n });
     }
   },
   {
-    id: "G13",
+    id: "G15",
     circuit: "settleConfidentialInvoice",
     expectedMessage: "Settlement breaches minimum reserve floor",
-    userGuardOrdinal: 12,
+    userGuardOrdinal: 14,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod, {
         initialBalance: 51_000_000n,
         minReserveFloor: 50_000_000n
       });
+      return h.settle(15_000_000n, mod.DisclosureTier.MinimalSolvency, { invoiceAmount: 2_000_000n });
+    }
+  },
+  {
+    id: "G16",
+    circuit: "settleConfidentialInvoice",
+    expectedMessage: "MinimalSolvency tier must use full governance ceiling",
+    userGuardOrdinal: 15,
+    runAttack: async (mod) => {
+      const h = await MutantHarness.boot(mod);
       return h.settle(5_000_000n, mod.DisclosureTier.MinimalSolvency, { invoiceAmount: 2_000_000n });
     }
   },
   {
-    id: "G14",
+    id: "G17",
+    circuit: "settleConfidentialInvoice",
+    expectedMessage: "ThresholdBand cap must be strictly below governance ceiling",
+    userGuardOrdinal: 16,
+    runAttack: async (mod) => {
+      const h = await MutantHarness.boot(mod);
+      return h.settle(15_000_000n, mod.DisclosureTier.ThresholdBand, { invoiceAmount: 2_000_000n });
+    }
+  },
+  {
+    id: "G18",
     circuit: "settleConfidentialInvoice",
     expectedMessage: "Jurisdiction leaf does not match Merkle path",
-    userGuardOrdinal: 13,
+    userGuardOrdinal: 17,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       return h.settle(5_000_000n, mod.DisclosureTier.AuditorScoped, {
@@ -527,10 +577,10 @@ const GUARD_MUTATION_CASES: GuardMutationCase[] = [
     }
   },
   {
-    id: "G15",
+    id: "G19",
     circuit: "settleConfidentialInvoice",
     expectedMessage: "Jurisdiction is not in the approved compliance Merkle tree",
-    userGuardOrdinal: 14,
+    userGuardOrdinal: 18,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       const isoKP = bytes32("iso:KP");
@@ -541,10 +591,10 @@ const GUARD_MUTATION_CASES: GuardMutationCase[] = [
     }
   },
   {
-    id: "G16",
+    id: "G20",
     circuit: "settleConfidentialInvoice",
     expectedMessage: "Invoice nullifier already spent",
-    userGuardOrdinal: 15,
+    userGuardOrdinal: 19,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       const nextSalt = bytes32("mutant:salt:after-1");
@@ -562,10 +612,34 @@ const GUARD_MUTATION_CASES: GuardMutationCase[] = [
     }
   },
   {
-    id: "G17",
+    id: "G21",
+    circuit: "settleConfidentialInvoice",
+    expectedMessage: "Auditor viewing key is not authorized for this vault",
+    userGuardOrdinal: 20,
+    runAttack: async (mod) => {
+      const h = await MutantHarness.boot(mod);
+      return h.settle(5_000_000n, mod.DisclosureTier.AuditorScoped, {
+        auditorViewingKeyHash: bytes32("rogue:auditor:vk")
+      });
+    }
+  },
+  {
+    id: "G22",
+    circuit: "settleConfidentialInvoice",
+    expectedMessage: "Next treasury blinding factor must be fresh",
+    userGuardOrdinal: 21,
+    runAttack: async (mod) => {
+      const h = await MutantHarness.boot(mod);
+      return h.settle(5_000_000n, mod.DisclosureTier.AuditorScoped, {
+        nextTreasuryBlindingFactor: h.privateState.treasuryBlindingFactor
+      });
+    }
+  },
+  {
+    id: "G23",
     circuit: "updateGovernancePolicy",
     expectedMessage: "Unauthorized treasury operator",
-    userGuardOrdinal: 16,
+    userGuardOrdinal: 22,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       return h.updatePolicy(10_000_000n, 40_000_000n, mod.VaultStatus.Active, {
@@ -574,10 +648,10 @@ const GUARD_MUTATION_CASES: GuardMutationCase[] = [
     }
   },
   {
-    id: "G18",
+    id: "G24",
     circuit: "updateGovernancePolicy",
     expectedMessage: "Max single settlement must be positive",
-    userGuardOrdinal: 17,
+    userGuardOrdinal: 23,
     runAttack: async (mod) => {
       const h = await MutantHarness.boot(mod);
       return h.updatePolicy(0n, 50_000_000n, mod.VaultStatus.Active);
@@ -585,17 +659,16 @@ const GUARD_MUTATION_CASES: GuardMutationCase[] = [
   }
 ];
 
-describe("Guard-Mutation Security Audit (18/18 Compact Contract assert() Guards)", () => {
+describe("Compiled JS Guard-Mutation Audit (24/24 Compact Contract v2.1 assert() Guards)", () => {
   const allCompiledSpans = findCompiledAssertSpans(COMPILED_JS);
   const userCompiledSpans = allCompiledSpans.filter((s) => !s.isCompilerGenerated);
 
-  it("maps 100% of assert(...) statements in contracts/proofvault.compact to compiled guards", () => {
+  it("maps 100% of assert(...) statements in contracts/proofvault.compact to compiled JS guards", () => {
     const compactAssertCount = (COMPACT_SRC.match(/\bassert\s*\(/g) ?? []).length;
-    expect(compactAssertCount).toBe(18);
-    expect(userCompiledSpans).toHaveLength(18);
-    expect(GUARD_MUTATION_CASES).toHaveLength(18);
+    expect(compactAssertCount).toBe(24);
+    expect(userCompiledSpans).toHaveLength(24);
+    expect(GUARD_MUTATION_CASES).toHaveLength(24);
 
-    // Verify every single case message matches the compiled JS guard at its exact ordinal
     for (const tc of GUARD_MUTATION_CASES) {
       expect(userCompiledSpans[tc.userGuardOrdinal].message).toBe(tc.expectedMessage);
     }
@@ -605,20 +678,16 @@ describe("Guard-Mutation Security Audit (18/18 Compact Contract assert() Guards)
 
   for (const tc of GUARD_MUTATION_CASES) {
     it(`[${tc.id}] kills mutant when deleting ${tc.circuit}() guard: "${tc.expectedMessage}"`, async () => {
-      // 1. Baseline compiled contract MUST block the exploit with the exact guard message
       await expect(tc.runAttack(baselineMod)).rejects.toThrow(tc.expectedMessage);
 
-      // 2. Surgically delete ONLY this guard from compiled contract JS and re-run the attack
       const targetSpan = userCompiledSpans[tc.userGuardOrdinal];
       const mutatedMod = loadCompiledContract(targetSpan.index);
 
       if (tc.fallsThroughToCompilerUnderflow) {
-        // Removing explicit "Insufficient treasury balance" exposes compiler u64 subtraction check
         await expect(tc.runAttack(mutatedMod)).rejects.toThrow(
           /result of subtraction would be negative/
         );
       } else {
-        // Without this guard, the exploit bypasses the security check and resolves cleanly -> mutant KILLED!
         let bypassError: unknown = null;
         try {
           await tc.runAttack(mutatedMod);
@@ -631,21 +700,22 @@ describe("Guard-Mutation Security Audit (18/18 Compact Contract assert() Guards)
   }
 });
 
-describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Engine Invariants", () => {
+describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & SHA-256 Simulator Invariants", () => {
   const baselineMod = loadCompiledContract(null);
 
-  it("fuzzes arbitrary valid settlement tuples against compiled Compact 0.28.0 runtime", async () => {
+  it("fuzzes arbitrary valid settlement tuples across all 3 tiers on compiled Compact 0.28.0 runtime", async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.bigInt({ min: 1_000_000n, max: 500_000_000n }), // floor
-        fc.bigInt({ min: 1n, max: 100_000_000n }), // amount
-        fc.bigInt({ min: 0n, max: 50_000_000n }), // capSlack
-        fc.bigInt({ min: 0n, max: 50_000_000n }), // maxSlack
-        fc.bigInt({ min: 0n, max: 500_000_000n }), // balanceSlack
-        fc.constantFrom(0, 1, 2), // DisclosureTier
+        fc.bigInt({ min: 1_000_000n, max: 500_000_000n }),
+        fc.bigInt({ min: 1n, max: 100_000_000n }),
+        fc.bigInt({ min: 1n, max: 50_000_000n }), // strict cap > amount requires capSlack >= 1
+        fc.bigInt({ min: 1n, max: 50_000_000n }), // maxSlack >= 1 so ThresholdBand has cap < maxCap
+        fc.bigInt({ min: 0n, max: 500_000_000n }),
+        fc.constantFrom(0, 1, 2),
         async (floor, amount, capSlack, maxSlack, balanceSlack, tier) => {
-          const cap = amount + capSlack;
-          const maxCap = cap + maxSlack;
+          const bandCap = amount + capSlack;
+          const maxCap = bandCap + maxSlack;
+          const cap = tier === baselineMod.DisclosureTier.MinimalSolvency ? maxCap : bandCap;
           const initialBalance = floor + amount + balanceSlack;
 
           const h = await MutantHarness.boot(baselineMod, {
@@ -654,7 +724,7 @@ describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Eng
             minReserveFloor: floor
           });
 
-          const nextSalt = bytes32(`fuzz:next:${initialBalance}:${amount}`);
+          const nextSalt = bytes32(`fuzz:next:${initialBalance}:${amount}:${tier}`);
           const receiptId = await h.settle(cap, tier, {
             invoiceAmount: amount,
             nextTreasuryBlindingFactor: nextSalt
@@ -673,7 +743,6 @@ describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Eng
             expect(receipt.auditorTag.every((b) => b === 0)).toBe(true);
           }
 
-          // Re-blinded balance proves exact remaining balance solvency and rejects remaining+1
           const remaining = initialBalance - amount;
           h.privateState = {
             ...h.privateState,
@@ -682,6 +751,7 @@ describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Eng
           };
           const solvency = await h.proveSolvency(remaining);
           expect(solvency).toHaveLength(32);
+          expect(h.getLedger().lastSolvencyFloor).toBe(remaining);
           await expect(h.proveSolvency(remaining + 1n)).rejects.toThrow(
             /Treasury below requested solvency floor/
           );
@@ -694,8 +764,8 @@ describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Eng
   it("fuzzes invalid amount/cap/floor violations on compiled runtime and guarantees zero state mutation", async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.integer({ min: 0, max: 3 }), // violation kind
-        fc.bigInt({ min: 1n, max: 10_000_000n }), // delta
+        fc.integer({ min: 0, max: 4 }),
+        fc.bigInt({ min: 1n, max: 10_000_000n }),
         async (kind, delta) => {
           const h = await MutantHarness.boot(baselineMod, {
             initialBalance: 100_000_000n,
@@ -707,21 +777,22 @@ describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Eng
           let cap = 5_000_000n;
           let amount = 2_000_000n;
           if (kind === 0) {
-            amount = 0n; // zero amount
+            amount = 0n;
           } else if (kind === 1) {
-            amount = cap + delta; // exceeds budgetTierCap
+            amount = cap; // strict cap > amount boundary violation
           } else if (kind === 2) {
-            cap = 15_000_000n + delta; // exceeds governance ceiling
+            amount = cap + delta;
+          } else if (kind === 3) {
+            cap = 15_000_000n + delta;
           } else {
-            cap = 15_000_000n;
-            amount = 10_000_000n + (delta % 5_000_000n) + 1n; // breaches $90M reserve floor
+            cap = 14_999_999n;
+            amount = 10_000_000n + (delta % 4_999_998n) + 1n; // breaches reserve floor
           }
 
           await expect(
             h.settle(cap, baselineMod.DisclosureTier.ThresholdBand, { invoiceAmount: amount })
           ).rejects.toThrow();
 
-          // On-chain ledger must remain completely untouched
           expect(h.getLedger().settledInvoiceCount).toBe(0n);
           expect(runtime.toHex(h.getLedger().treasuryBalanceCommitment)).toBe(beforeCommit);
         }
@@ -750,6 +821,7 @@ describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Eng
 
           const serializedHex = runtime.toHex(h.contractState.serialize());
           expect(serializedHex).not.toContain(runtime.toHex(h.privateState.operatorSecretKey));
+          expect(serializedHex).not.toContain(runtime.toHex(h.privateState.auditorViewingKeyHash));
           expect(serializedHex).not.toContain(runtime.toHex(vendor));
           expect(serializedHex).not.toContain(runtime.toHex(items));
           expect(serializedHex).not.toContain(runtime.toHex(invSalt));
@@ -759,13 +831,13 @@ describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Eng
     );
   });
 
-  it("fuzzes multi-invoice browser engine sequences for balance conservation & 7/7 receipt validity", () => {
+  it("fuzzes multi-invoice browser simulator sequences for balance conservation & 7/7 receipt validity", () => {
     fc.assert(
       fc.property(
         fc.array(
           fc.record({
             amountCents: fc.integer({ min: 10_000, max: 4_000_000 }),
-            capSlack: fc.integer({ min: 0, max: 3_000_000 }),
+            capSlack: fc.integer({ min: 1, max: 3_000_000 }), // strict cap > amount
             jurisdiction: fc.constantFrom("US", "CH", "SG", "GB", "DE", "JP"),
             tier: fc.constantFrom(
               UiDisclosureTier.MinimalSolvency,
@@ -778,19 +850,23 @@ describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Eng
         (invoices) => {
           const auditorKey = deriveDeterministicSaltHex("fuzz:auditor:key");
           const initialBalance = 500_000_000;
+          const maxCap = 20_000_000;
           const engine = new ProofVaultEngine({
             operatorSecretKeyHex: deriveDeterministicSaltHex("fuzz:op:key"),
             initialTreasuryBalanceCents: initialBalance,
             initialBlindingFactorHex: deriveDeterministicSaltHex("fuzz:salt:0"),
             auditorViewingKeyHex: auditorKey,
-            maxSingleSettlementCents: 20_000_000,
+            maxSingleSettlementCents: maxCap,
             minReserveFloorCents: 50_000_000,
             initialJurisdictions: DEFAULT_JURISDICTIONS
           });
 
           let spent = 0;
           invoices.forEach((inv, idx) => {
-            const cap = inv.amountCents + inv.capSlack;
+            const cap =
+              inv.tier === UiDisclosureTier.MinimalSolvency
+                ? maxCap
+                : inv.amountCents + inv.capSlack;
             const res = engine.settleConfidentialInvoice({
               vendorLabel: `Confidential Vendor ${idx}`,
               vendorIdRaw: `vendor:fuzz:${idx}`,
@@ -823,7 +899,7 @@ describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Eng
     );
   });
 
-  it("fuzzes deterministic anti-replay nullifiers across changing amounts, caps, and tiers", () => {
+  it("fuzzes secret-keyed anti-replay nullifiers across changing amounts, caps, and tiers", () => {
     fc.assert(
       fc.property(
         fc.string({ minLength: 3, maxLength: 20 }),
@@ -859,7 +935,7 @@ describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Eng
             invoiceReference: ref,
             lineItemsSummary: "Fixed deliverable",
             amountCents: amt2,
-            budgetTierCapCents: 10_000_000,
+            budgetTierCapCents: 15_000_000,
             jurisdictionCode: "SG",
             disclosureTier: UiDisclosureTier.MinimalSolvency
           });
@@ -877,7 +953,7 @@ describe("Property-Based Fuzzing (fast-check) — Compiled Runtime & Browser Eng
         fc.stringMatching(/^[A-Z][a-z]{4,12} GmbH$/),
         fc.integer({ min: 123_456, max: 4_876_543 }),
         (vendorName, exactAmount) => {
-          const cap = 10_000_000; // fixed $100,000 public tier band independent of exactAmount
+          const cap = 10_000_000;
           const engine = new ProofVaultEngine({
             operatorSecretKeyHex: deriveDeterministicSaltHex("pii:op"),
             initialTreasuryBalanceCents: 300_000_000,

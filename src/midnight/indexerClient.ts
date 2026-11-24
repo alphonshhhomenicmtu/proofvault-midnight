@@ -29,6 +29,8 @@ export const LIVE_PREVIEW_DEPLOYMENT = {
   serializedStateBytes: 11697,
   receiptIdHex: "fa1ccd4f6b061f46745f053afee56c2460c5cbb066413744e73274f384516822",
   solvencyAttestationHex: "90264f766319a06d59e25bdf0842537b12d3e0316849af178a12d2e51afce656",
+  contractVersionNote:
+    "Live Preview contract (0x9ae57d40...4228bc8) runs the v2.0 Compact 0.28.0 artifact proved via Proof Server 9.0.2 with 2 registered jurisdiction leaves (iso:CH, iso:SG — a 1-of-2 anonymity set). The hardened v2.1 circuit (secret-keyed nullifiers, jurisdiction-bound commitments, strict cap > amount, registered auditor authorization, persisted solvency state) is compiled with compactc 0.36.1 and verified via @midnight-ntwrk/compact-runtime@0.21.0 in npm test.",
   transactions: [
     {
       circuit: "ContractDeploy",
@@ -36,7 +38,7 @@ export const LIVE_PREVIEW_DEPLOYMENT = {
       txHash: "a952332ea1c3680295a853ad1ec4ede82ae1e82f9dcda0e61630f7db15264747",
       blockHeight: 250802,
       status: "SucceedEntirely",
-      note: "Initialized shielded balance commitment, operator key & governance caps"
+      note: "Initialized shielded balance commitment, operator key digest & public governance caps"
     },
     {
       circuit: "registerApprovedJurisdiction",
@@ -52,23 +54,23 @@ export const LIVE_PREVIEW_DEPLOYMENT = {
       txHash: "ad9189709834908fa9ccd5cbbd9f06a3426f6dc8d0749f047fcd2cee9c2370fb",
       blockHeight: 250838,
       status: "SucceedEntirely",
-      note: "Inserted iso:SG leaf into on-chain HistoricMerkleTree<8>"
+      note: "Inserted iso:SG leaf into on-chain HistoricMerkleTree<8> (2-leaf tree on Preview)"
     },
     {
       circuit: "proveTreasurySolvency",
-      label: "ZK Solvency Proof (>= $2.00M Floor)",
+      label: "ZK Solvency Proof (Public Floor >= $2.00M)",
       txHash: "743afa89e518f514353752b970fe66341bec8b4b2b5c97eb23ee7873200c12ba",
       blockHeight: 250844,
       status: "SucceedEntirely",
-      note: "Attestation 0x90264f76...afce656 verified without disclosing balance"
+      note: "Attestation 0x90264f76...afce656 verified without disclosing exact balance"
     },
     {
       circuit: "settleConfidentialInvoice",
-      label: "Confidential Settlement ($42.5k <= $50k Cap)",
+      label: "Confidential Settlement (Shielded Payout under $50k Cap)",
       txHash: "c60a81d352fcb277c4b187bea22757df339d2c8c096af0490b491a97feb2e059",
       blockHeight: 250852,
       status: "SucceedEntirely",
-      note: "AuditorScoped receipt 0xfa1ccd4f...4516822 written; nullifier locked"
+      note: "AuditorScoped receipt 0xfa1ccd4f...4516822 written; exact payout kept off-chain"
     },
     {
       circuit: "verifyReceiptOnChain",
@@ -76,7 +78,7 @@ export const LIVE_PREVIEW_DEPLOYMENT = {
       txHash: "0043a6dcb17177b8b3b4d291b078bbac4284222de67763d2b38be532f2ac3d4b",
       blockHeight: 250861,
       status: "SucceedEntirely",
-      note: "Returned true proving immutable on-chain receipt existence"
+      note: "Returned true confirming on-chain auditReceipts map membership"
     }
   ] as LiveDeploymentTxRecord[]
 } as const;
@@ -213,7 +215,6 @@ function parseTimestampIso(ts: number | string | undefined): string | null {
   if (ts === undefined || ts === null) return null;
   const numeric = typeof ts === "string" ? Number(ts) : ts;
   if (!Number.isFinite(numeric)) return null;
-  // Midnight indexer returns epoch milliseconds (sometimes seconds on older nodes)
   const ms = numeric > 1_000_000_000_000 ? numeric : numeric * 1000;
   try {
     return new Date(ms).toISOString();
