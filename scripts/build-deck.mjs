@@ -47,8 +47,13 @@ function buildHtml() {
   const previewManifest = JSON.parse(
     fs.readFileSync(path.join(ROOT_DIR, "deploy", "preview.json"), "utf8")
   );
-  const blockHeight = previewManifest?.verifiedLiveChainHead?.blockHeight ?? 249428;
+  const blockHeight = previewManifest?.verifiedLiveChainHead?.blockHeight ?? 250861;
   const blockHashShort = String(previewManifest?.verifiedLiveChainHead?.blockHash ?? "").slice(0, 14);
+  const deployedContract = previewManifest?.deployment?.contractAddress ?? "9ae57d40331df50a9a30340d2f2a612f7e6cf8fa99112d11e630c7b3f4228bc8";
+  const deployedContractShort = `${deployedContract.slice(0, 12)}...${deployedContract.slice(-10)}`;
+  const deployTxShort = String(previewManifest?.deployment?.deployTxHash ?? "").slice(0, 12);
+  const settleTxShort = String(previewManifest?.deployment?.lifecycleTransactions?.settleConfidentialInvoice?.txHash ?? "").slice(0, 12);
+  const stateBytes = previewManifest?.deployment?.finalOnChainState?.serializedStateBytes ?? 11697;
 
   return `<!doctype html>
 <html lang="en">
@@ -314,8 +319,8 @@ function buildHtml() {
         <div class="kpi-lbl mono">Guard Mutants Killed</div>
       </div>
       <div class="kpi">
-        <div class="kpi-num" style="color:#f8fafc;">Live v4</div>
-        <div class="kpi-lbl mono">Walletless Indexer Reader</div>
+        <div class="kpi-num" style="color:#f8fafc;">6 / 6 Live</div>
+        <div class="kpi-lbl mono">Midnight Preview Txs</div>
       </div>
     </div>
   </div>
@@ -674,16 +679,16 @@ function buildHtml() {
 
     <div style="display:flex; flex-direction:column; gap:12px;">
       <div class="card emerald">
-        <h3>Live Midnight Preview Indexer (GraphQL v4)</h3>
-        <p style="margin:0;">Queries <span class="mono" style="color:#34d399;">indexer.preview.midnight.network/api/v4/graphql</span> directly from the browser (CORS <span class="mono">*</span>, zero API key). Verified live at Block <span class="mono">#${Number(blockHeight).toLocaleString()}</span> (<span class="mono">0x${blockHashShort}...</span>, Ledger 9).</p>
+        <h3>Deployed Live on Midnight Preview (Ledger 9)</h3>
+        <p style="margin:0;">Contract <span class="mono" style="color:#34d399;">0x${deployedContractShort}</span> verified live on <span class="mono">indexer.preview.midnight.network</span> at Block <span class="mono">#${Number(blockHeight).toLocaleString()}</span> (<span class="mono">${Number(stateBytes).toLocaleString()} B</span> on-chain state, <span class="mono">0x${blockHashShort}...</span>).</p>
       </div>
       <div class="card cyan">
-        <h3>Real <span class="mono">window.midnight</span> Tx Dispatch (Lace &amp; 1AM)</h3>
-        <p style="margin:0;">Discovers CAIP-372 UUID providers, invokes <span class="mono">hintUsage()</span> &amp; <span class="mono">getDustBalance()</span>, wires <span class="mono">KeyMaterialProvider</span> for <span class="mono">getProvingProvider()</span>, and executes <span class="mono">balanceUnsealedTransaction() → submitTransaction()</span> or BIP-340 <span class="mono">signData()</span>.</p>
+        <h3>6/6 Confirmed Live On-Chain ZK Transactions</h3>
+        <p style="margin:0;"><span class="mono">ContractDeploy</span> (<span class="mono">0x${deployTxShort}...</span>, #250,802) → <span class="mono">registerApprovedJurisdiction(CH/SG)</span> → <span class="mono">proveTreasurySolvency</span> → <span class="mono">settleConfidentialInvoice</span> (<span class="mono">0x${settleTxShort}...</span>, #250,852) → <span class="mono">verifyReceiptOnChain</span> (#250,861, <span class="mono">true</span>).</p>
       </div>
       <div class="card amber">
-        <h3>Honest Testnet Deployment Pipeline</h3>
-        <p style="margin:0;"><span class="mono">scripts/deploy-testnet.mjs</span> + <span class="mono">deploy/preview.json</span> &amp; <span class="mono">deploy/preprod.json</span> are 100% turnkey. Official Midnight faucets require interactive Cloudflare Turnstile (never bypassed); <span class="mono">npm run verify:onchain</span> &amp; <span class="mono">deploy:preview:dry</span> execute end-to-end today.</p>
+        <h3>Real <span class="mono">window.midnight</span> Lace &amp; 1AM Dispatch</h3>
+        <p style="margin:0;">Discovers CAIP-372 UUID providers, invokes <span class="mono">hintUsage()</span> &amp; <span class="mono">getDustBalance()</span>, wires <span class="mono">KeyMaterialProvider</span> for <span class="mono">getProvingProvider()</span>, and executes <span class="mono">balanceUnsealedTransaction() → submitTransaction()</span> or BIP-340 <span class="mono">signData()</span>.</p>
       </div>
     </div>
   </div>
@@ -869,8 +874,8 @@ function buildHtml() {
       <span class="badge amber mono" style="margin-bottom:8px;">ROADMAP</span>
       <h3>Next Milestones</h3>
       <ul>
-        <li><strong>Now (Wave 3 V2):</strong> Compact 0.28.0 Ledger 9 circuits, 52 tests + 18/18 guard mutations, live Preview Indexer GraphQL reader, Lace/1AM dispatch.</li>
-        <li><strong>Q1 2027 (Preview/Preprod Live):</strong> Funded testnet broadcast + Zswap native <span class="mono">sendShielded</span> token payout coupling.</li>
+        <li><strong>Now (Wave 3 Live):</strong> Deployed LIVE on Midnight Preview (<span class="mono">0x${deployedContractShort}</span>) with 6/6 confirmed ZK txs, 52/52 tests + 18/18 guard mutants killed, walletless GraphQL reader, and Lace/1AM dispatch.</li>
+        <li><strong>Q1 2027 (Preprod + Zswap Payouts):</strong> Midnight Preprod Blockfrost deployment + Zswap native <span class="mono">sendShielded</span> confidential token payout coupling.</li>
         <li><strong>Q2 2027 (Mainnet Institutional):</strong> M-of-N Jubjub Schnorr multisig operator auth &amp; batched Merkle payroll proofs.</li>
       </ul>
     </div>

@@ -25,6 +25,7 @@ import {
   verifyAuditPackageAgainstLedger
 } from "../midnight/proofEngine";
 import {
+  LIVE_PREVIEW_DEPLOYMENT,
   MIDNIGHT_INDEXER_PRESETS,
   fetchLiveIndexerSnapshot
 } from "../midnight/indexerClient";
@@ -59,7 +60,9 @@ export function AuditTab({
   const [customEndpoint, setCustomEndpoint] = useState(
     walletState.serviceUris?.indexerUri ?? MIDNIGHT_INDEXER_PRESETS.preview.graphqlUri
   );
-  const [contractQueryInput, setContractQueryInput] = useState(ledger.contractAddress);
+  const [contractQueryInput, setContractQueryInput] = useState<string>(
+    LIVE_PREVIEW_DEPLOYMENT.contractAddress
+  );
   const [blockfrostProjectId, setBlockfrostProjectId] = useState("");
   const [indexerLoading, setIndexerLoading] = useState(false);
   const [liveSnapshot, setLiveSnapshot] = useState<LiveIndexerSnapshot | null>(null);
@@ -264,9 +267,9 @@ export function AuditTab({
             <button
               type="button"
               className="btn sm ghost"
-              onClick={() => setContractQueryInput(ledger.contractAddress)}
+              onClick={() => setContractQueryInput(LIVE_PREVIEW_DEPLOYMENT.contractAddress)}
             >
-              Use Vault Address
+              Use Live Preview Contract
             </button>
             <button
               type="button"
@@ -279,6 +282,50 @@ export function AuditTab({
           <span className="mono" style={{ fontSize: 11.5, color: "#94a3b8" }}>
             Endpoint: {activeEndpointUrl}
           </span>
+        </div>
+
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 12px",
+            borderRadius: 10,
+            background: "rgba(16, 185, 129, 0.06)",
+            border: "1px solid rgba(52, 211, 153, 0.28)"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span className="badge emerald">LIVE ON MIDNIGHT PREVIEW</span>
+              <span className="mono" style={{ fontSize: 12, color: "#e2e8f0" }}>
+                Contract: 0x{LIVE_PREVIEW_DEPLOYMENT.contractAddress}
+              </span>
+            </div>
+            <span className="mono" style={{ fontSize: 11, color: "#34d399" }}>
+              6/6 SucceedEntirely · Blocks #250,802–#250,861 · 11,697 B State
+            </span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 6 }}>
+            {LIVE_PREVIEW_DEPLOYMENT.transactions.map((tx) => (
+              <div
+                key={tx.txHash}
+                style={{
+                  padding: "6px 8px",
+                  borderRadius: 6,
+                  background: "#080c14",
+                  border: "1px solid rgba(148, 163, 184, 0.14)",
+                  fontSize: 11
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 6, marginBottom: 2 }}>
+                  <span style={{ color: "#38bdf8", fontWeight: 600 }}>{tx.circuit}</span>
+                  <span className="mono" style={{ color: "#34d399" }}>#{tx.blockHeight.toLocaleString()}</span>
+                </div>
+                <div className="mono" style={{ color: "#94a3b8", fontSize: 10.5 }}>
+                  tx: 0x{truncateHex(tx.txHash, 12, 8)}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {liveSnapshot && (

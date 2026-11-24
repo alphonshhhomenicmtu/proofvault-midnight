@@ -10,6 +10,77 @@ export interface IndexerEndpointPreset {
   note: string;
 }
 
+export interface LiveDeploymentTxRecord {
+  circuit: string;
+  label: string;
+  txHash: string;
+  blockHeight: number;
+  status: "SucceedEntirely";
+  note: string;
+}
+
+export const LIVE_PREVIEW_DEPLOYMENT = {
+  network: "preview" as const,
+  contractAddress: "9ae57d40331df50a9a30340d2f2a612f7e6cf8fa99112d11e630c7b3f4228bc8",
+  deployTxHash: "a952332ea1c3680295a853ad1ec4ede82ae1e82f9dcda0e61630f7db15264747",
+  deployBlockHeight: 250802,
+  latestBlockHeight: 250861,
+  settledInvoiceCount: 1,
+  serializedStateBytes: 11697,
+  receiptIdHex: "fa1ccd4f6b061f46745f053afee56c2460c5cbb066413744e73274f384516822",
+  solvencyAttestationHex: "90264f766319a06d59e25bdf0842537b12d3e0316849af178a12d2e51afce656",
+  transactions: [
+    {
+      circuit: "ContractDeploy",
+      label: "Deploy ProofVault (Compact 0.28.0 / Ledger 9)",
+      txHash: "a952332ea1c3680295a853ad1ec4ede82ae1e82f9dcda0e61630f7db15264747",
+      blockHeight: 250802,
+      status: "SucceedEntirely",
+      note: "Initialized shielded balance commitment, operator key & governance caps"
+    },
+    {
+      circuit: "registerApprovedJurisdiction",
+      label: "Register Jurisdiction CH (Switzerland)",
+      txHash: "92d830abe80c3df4c0b245aab6c8c0d5649de782a97f615c2e76a99922c3fb21",
+      blockHeight: 250831,
+      status: "SucceedEntirely",
+      note: "Inserted iso:CH leaf into on-chain HistoricMerkleTree<8>"
+    },
+    {
+      circuit: "registerApprovedJurisdiction",
+      label: "Register Jurisdiction SG (Singapore)",
+      txHash: "ad9189709834908fa9ccd5cbbd9f06a3426f6dc8d0749f047fcd2cee9c2370fb",
+      blockHeight: 250838,
+      status: "SucceedEntirely",
+      note: "Inserted iso:SG leaf into on-chain HistoricMerkleTree<8>"
+    },
+    {
+      circuit: "proveTreasurySolvency",
+      label: "ZK Solvency Proof (>= $2.00M Floor)",
+      txHash: "743afa89e518f514353752b970fe66341bec8b4b2b5c97eb23ee7873200c12ba",
+      blockHeight: 250844,
+      status: "SucceedEntirely",
+      note: "Attestation 0x90264f76...afce656 verified without disclosing balance"
+    },
+    {
+      circuit: "settleConfidentialInvoice",
+      label: "Confidential Settlement ($42.5k <= $50k Cap)",
+      txHash: "c60a81d352fcb277c4b187bea22757df339d2c8c096af0490b491a97feb2e059",
+      blockHeight: 250852,
+      status: "SucceedEntirely",
+      note: "AuditorScoped receipt 0xfa1ccd4f...4516822 written; nullifier locked"
+    },
+    {
+      circuit: "verifyReceiptOnChain",
+      label: "Verify AuditReceipt Membership On-Chain",
+      txHash: "0043a6dcb17177b8b3b4d291b078bbac4284222de67763d2b38be532f2ac3d4b",
+      blockHeight: 250861,
+      status: "SucceedEntirely",
+      note: "Returned true proving immutable on-chain receipt existence"
+    }
+  ] as LiveDeploymentTxRecord[]
+} as const;
+
 export const MIDNIGHT_INDEXER_PRESETS: Record<"preview" | "preprod", IndexerEndpointPreset> = {
   preview: {
     id: "preview",

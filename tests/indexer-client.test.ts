@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  LIVE_PREVIEW_DEPLOYMENT,
   MIDNIGHT_INDEXER_PRESETS,
   buildIndexerGraphQLQuery,
   fetchLiveIndexerSnapshot,
@@ -158,5 +159,12 @@ describe("Midnight Indexer GraphQL v4 Client (Walletless State Reader)", () => {
     expect(snap.error).toContain("project_id");
     const callHeaders = (mockFetch.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
     expect(callHeaders.project_id).toBe("midnight_preprod_demo_token");
+  });
+
+  it("exposes verified live Midnight Preview deployment constants with 6 confirmed txs", () => {
+    expect(normalizeHexAddress(LIVE_PREVIEW_DEPLOYMENT.contractAddress)).toMatch(/^[0-9a-f]{64}$/);
+    expect(LIVE_PREVIEW_DEPLOYMENT.transactions).toHaveLength(6);
+    expect(LIVE_PREVIEW_DEPLOYMENT.transactions.every((t) => /^[0-9a-f]{64}$/.test(t.txHash))).toBe(true);
+    expect(LIVE_PREVIEW_DEPLOYMENT.transactions.every((t) => t.status === "SucceedEntirely")).toBe(true);
   });
 });

@@ -7,9 +7,11 @@
 [![Midnight Runtime](https://img.shields.io/badge/compact--runtime-0.21.0-f59e0b.svg)](./package.json)
 [![DApp Connector](https://img.shields.io/badge/dapp--connector--api-4.1.0-38bdf8.svg)](./src/midnight/walletAdapter.ts)
 [![Tests](https://img.shields.io/badge/Vitest-52%20Passed%20(18%2F18%20Mutants%20Killed)-34d399.svg)](./tests/mutation-audit.test.ts)
+[![Midnight Preview](https://img.shields.io/badge/Midnight%20Preview-Live%20Contract%20(6%2F6%20Txs)-34d399.svg)](./deploy/preview.json)
 
 > Built for **AKINDO — Build Privacy-First Apps on Midnight (Wave 3)** (`midnightntwrk`).
 > - **Live App (GitHub Pages):** [https://alphonshhhomenicmtu.github.io/proofvault-midnight/](https://alphonshhhomenicmtu.github.io/proofvault-midnight/)
+> - **Live Midnight Preview Contract (Ledger 9):** `0x9ae57d40331df50a9a30340d2f2a612f7e6cf8fa99112d11e630c7b3f4228bc8` (6/6 confirmed txs, blocks `#250,802`–`#250,861`, [`deploy/preview.json`](./deploy/preview.json))
 > - **10-Slide Institutional Pitch Deck (PDF):** [`docs/proofvault-deck.pdf`](./docs/proofvault-deck.pdf)
 > - **Narrated 1080p Demo Video:** [https://www.youtube.com/watch?v=2SAttW3TaCU](https://www.youtube.com/watch?v=2SAttW3TaCU)
 > - **Privacy Boundary & `disclose()` Audit:** [`PRIVACY_BOUNDARY.md`](./PRIVACY_BOUNDARY.md)
@@ -109,14 +111,30 @@ The production contract [`contracts/proofvault.compact`](./contracts/proofvault.
 | `updateGovernancePolicy` | 3,606 B | 1,053 B | 2,121 B | 10.8 MB | Operator-authenticated governance cap/floor rotation, circuit breaker pause/resume & epoch bump |
 | `verifyReceiptOnChain` | 969 B | 266 B | 1,353 B | 0.2 MB | Public verification circuit checking on-chain existence in `auditReceipts` |
 
-### Midnight Testnet Deployment & Live Indexer Status (Honest Telemetry)
+### Live Midnight Preview (Ledger 9) Deployment — Verified On-Chain
+
+ProofVault is **deployed and verified live on Midnight Preview** (`protocolVersion: 2001100`, `compactc 0.36.1`, `zkir-3.2.1`, Proof Server `9.0.2`) with **6 confirmed `SucceedEntirely` transactions** exercising the complete institutional privacy lifecycle:
+
+- **Live Midnight Preview Contract Address:** `0x9ae57d40331df50a9a30340d2f2a612f7e6cf8fa99112d11e630c7b3f4228bc8`
+- **Live Indexer GraphQL v4 Endpoint:** `https://indexer.preview.midnight.network/api/v4/graphql` (CORS `*`, zero auth)
+- **Final On-Chain Serialized State:** `11,697 bytes` (`settledInvoiceCount = 1`, `currentEpoch = 1`, `treasuryBalanceCommitment = 0xad62d127ef1ac13d4a73c26d995bb6ddd0fab47d23619dd04ac588c15146fc26`)
+- **Manifest:** [`deploy/preview.json`](./deploy/preview.json)
+
+| # | On-Chain Circuit / Action | Preview Block | Confirmed Transaction Hash (`SucceedEntirely`) | On-Chain Proof / Effect |
+| :---: | --- | ---: | --- | --- |
+| 1 | `ContractDeploy` | `#250,802` | `0xa952332ea1c3680295a853ad1ec4ede82ae1e82f9dcda0e61630f7db15264747` | Deployed `proofvault.compact` with shielded balance commitment & governance policy |
+| 2 | `registerApprovedJurisdiction(CH)` | `#250,831` | `0x92d830abe80c3df4c0b245aab6c8c0d5649de782a97f615c2e76a99922c3fb21` | Inserted `iso:CH` leaf into `HistoricMerkleTree<8, Bytes<32>>` |
+| 3 | `registerApprovedJurisdiction(SG)` | `#250,838` | `0xad9189709834908fa9ccd5cbbd9f06a3426f6dc8d0749f047fcd2cee9c2370fb` | Inserted `iso:SG` leaf into `HistoricMerkleTree<8, Bytes<32>>` |
+| 4 | `proveTreasurySolvency($2.00M)` | `#250,844` | `0x743afa89e518f514353752b970fe66341bec8b4b2b5c97eb23ee7873200c12ba` | Published ZK solvency attestation `0x90264f76...afce656` without revealing balance |
+| 5 | `settleConfidentialInvoice($42.5k <= $50k)` | `#250,852` | `0xc60a81d352fcb277c4b187bea22757df339d2c8c096af0490b491a97feb2e059` | Settled `AuditorScoped` receipt `0xfa1ccd4f...4516822`, re-blinded balance & locked nullifier |
+| 6 | `verifyReceiptOnChain(receiptId)` | `#250,861` | `0x0043a6dcb17177b8b3b4d291b078bbac4284222de67763d2b38be532f2ac3d4b` | Returned `true` confirming immutable `AuditReceipt` presence on-chain |
 
 | Network | Live Indexer Endpoint | Live Status | Deployment Manifest |
 | --- | --- | --- | --- |
-| **Midnight Preview (Ledger 9)** | `https://indexer.preview.midnight.network/api/v4/graphql` | **LIVE & PUBLIC** (CORS `*`, zero auth, verified at block `#249,525`, protocolVersion `2001100`) | [`deploy/preview.json`](./deploy/preview.json) — ready; faucet (`faucet.preview.midnight.network`) requires interactive Cloudflare Turnstile |
-| **Midnight Preprod (Ledger 9)** | `https://indexer.midnight-preprod.blockfrost.io/api/v4/graphql` | Migrated to Blockfrost on `2026-10-09` (requires `BLOCKFROST_PROJECT_ID`) | [`deploy/preprod.json`](./deploy/preprod.json) — ready; faucet (`faucet.preprod.midnight.network`) requires interactive Cloudflare Turnstile |
+| **Midnight Preview (Ledger 9)** | `https://indexer.preview.midnight.network/api/v4/graphql` | **DEPLOYED & VERIFIED LIVE** (6 confirmed txs, blocks `#250,802`–`#250,861`, protocolVersion `2001100`) | [`deploy/preview.json`](./deploy/preview.json) — `0x9ae57d40...4228bc8` |
+| **Midnight Preprod (Ledger 9)** | `https://indexer.midnight-preprod.blockfrost.io/api/v4/graphql` | Migrated to Blockfrost on `2026-10-09` (requires `BLOCKFROST_PROJECT_ID`) | [`deploy/preprod.json`](./deploy/preprod.json) — ready for Blockfrost key + faucet |
 
-> **Zero-CAPTCHA-Bypass Policy:** ProofVault strictly respects Midnight's Cloudflare Turnstile faucet protection and never automates anti-bot gates. Operators with funded tNight/tDUST seeds can broadcast immediately via `MIDNIGHT_WALLET_SEED=<hex> npm run deploy:preview` (with a local Proof Server on `http://127.0.0.1:6300`). Judges can verify live Preview chain sync and compiled-runtime execution with zero setup using `npm run verify:onchain` and `npm run deploy:preview:dry`, or click **"Verify Live On-Chain State"** directly inside the **Audit Portal** on GitHub Pages.
+> **Instant Walletless Verification:** Judges can query the live deployed ProofVault contract state (`11,697 bytes`) directly on Midnight Preview with zero wallet and zero Docker by running `npm run verify:onchain`, or clicking **"Verify Live On-Chain State"** inside the **Audit Portal** on GitHub Pages (pre-populated with `0x9ae57d40331df50a9a30340d2f2a612f7e6cf8fa99112d11e630c7b3f4228bc8`).
 
 ---
 

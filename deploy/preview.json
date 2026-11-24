@@ -7,10 +7,11 @@
     "compactc": "0.36.1",
     "compactLanguageVersion": "0.28.0",
     "runtimePackage": "@midnight-ntwrk/compact-runtime@0.21.0",
-    "connectorPackage": "@midnight-ntwrk/dapp-connector-api@4.1.0"
+    "connectorPackage": "@midnight-ntwrk/dapp-connector-api@4.1.0",
+    "proofServerVersion": "9.0.2"
   },
-  "status": "ready-awaiting-faucet-funding",
-  "statusNote": "Official Midnight Preview faucet (https://faucet.preview.midnight.network/) requires interactive Cloudflare Turnstile verification to dispense tNight/tDUST. In strict compliance with anti-bot policies, ProofVault never bypasses CAPTCHA gates. Run scripts/deploy-testnet.mjs with a funded MIDNIGHT_WALLET_SEED and local Proof Server (localhost:6300) to broadcast and automatically populate contractAddress and txHashes below.",
+  "status": "deployed-and-verified-live",
+  "statusNote": "ProofVault is deployed LIVE on Midnight Preview (Ledger 9, protocolVersion 2001100) with 6 confirmed SucceedEntirely transactions covering ContractDeploy, two HistoricMerkleTree jurisdiction registrations (CH, SG), a zero-knowledge treasury solvency attestation, a confidential AuditorScoped invoice settlement, and an on-chain receipt membership proof. Verify walletlessly anytime via `npm run verify:onchain` or the Audit Portal on GitHub Pages.",
   "endpoints": {
     "indexerGraphql": "https://indexer.preview.midnight.network/api/v4/graphql",
     "indexerWs": "wss://indexer.preview.midnight.network/api/v4/graphql/ws",
@@ -20,11 +21,11 @@
     "proofServerDefault": "http://127.0.0.1:6300"
   },
   "verifiedLiveChainHead": {
-    "verifiedAtIso": "2026-11-24T09:45:36.000Z",
-    "blockHeight": 249525,
-    "blockHash": "ec60919f589dd3bdf5b591ddd0ad4fdea165278fbd399ef79ad4a5e3a6cc0ca4",
+    "verifiedAtIso": "2026-11-24T11:59:29.000Z",
+    "blockHeight": 250861,
+    "blockHash": "a7f34d8b7ae54a74ae00e9a13f731281b0d0c9c7f6c24787823289a06a692c72",
     "protocolVersion": 2001100,
-    "zswapMerkleTreeRoot": "734e050b779a945da179d613118691dcef3e864d3390e72c98d60013a148218f64",
+    "zswapMerkleTreeRoot": "73622209374e5aef54c02181df486225536320c84d983754a1ce9358d0e9aa186a",
     "corsPublicAccess": true
   },
   "compiledArtifacts": {
@@ -59,16 +60,63 @@
     }
   },
   "deployment": {
-    "contractAddress": null,
-    "deployTxHash": null,
-    "deployBlockHeight": null,
+    "deployedAtIso": "2026-11-24T11:53:06.369Z",
+    "deployerUnshieldedAddress": "mn_addr_preview18v6zyyds5v5yw9sulmelegrrf6lykkf2kc2mwmca5pwucmcm2stswkk4rd",
+    "faucetFundingTxHash": "ab4dc3b057e26696283a89bb5aaa1c4b4395b722b8650b58fdeb5e255fdefd1e",
+    "faucetFundingBlockHeight": 250574,
+    "dustRegistrationTxId": "00f1893080523d9ec667d45290fac1c07beb315ecd41a5f7aa2fc6f6ce9595f74b",
+    "contractAddress": "9ae57d40331df50a9a30340d2f2a612f7e6cf8fa99112d11e630c7b3f4228bc8",
+    "deployTxHash": "a952332ea1c3680295a853ad1ec4ede82ae1e82f9dcda0e61630f7db15264747",
+    "deployTxId": "000963c949fea4134ee81a6dfd252302486e0f846fc93481d754414f81845fac1a",
+    "deployBlockHeight": 250802,
+    "deployBlockHash": "c93dc6c2a65edf22533eddf92d9be86b2af5b76e80d8cd2061d0f0e1d15f0a4b",
     "lifecycleTransactions": {
-      "registerApprovedJurisdiction_CH": null,
-      "registerApprovedJurisdiction_SG": null,
-      "proveTreasurySolvency": null,
-      "settleConfidentialInvoice": null,
+      "registerApprovedJurisdiction_CH": {
+        "txHash": "92d830abe80c3df4c0b245aab6c8c0d5649de782a97f615c2e76a99922c3fb21",
+        "txId": "00915af196f63e9d57f34633850e71ebb1df639a4239367365565230f3858cba53",
+        "blockHeight": 250831,
+        "blockHash": "2c943dd780e360c31fecf1f7e0eed2f7920ac5ff108f1166e9c327f6f0ab9eef",
+        "status": "SucceedEntirely"
+      },
+      "registerApprovedJurisdiction_SG": {
+        "txHash": "ad9189709834908fa9ccd5cbbd9f06a3426f6dc8d0749f047fcd2cee9c2370fb",
+        "txId": "0093fa7140d2d6cf235a9fb73295a665a36f9a3eadc37a6e9286fa028138ce6923",
+        "blockHeight": 250838,
+        "blockHash": "9475f62dcf59ef874575ada3815d1a337f03857875be46499801debc59945df3",
+        "status": "SucceedEntirely"
+      },
+      "proveTreasurySolvency": {
+        "txHash": "743afa89e518f514353752b970fe66341bec8b4b2b5c97eb23ee7873200c12ba",
+        "txId": "005c485475a51e18cf10f5b3a58f7cf986536ecc3a683e515e86c73f232d65ff9b",
+        "blockHeight": 250844,
+        "blockHash": "9066083053536ca1b4f16c6bee25502033ccf2ffb5db4088aeb276443ba0774c",
+        "status": "SucceedEntirely",
+        "solvencyAttestationHex": "90264f766319a06d59e25bdf0842537b12d3e0316849af178a12d2e51afce656"
+      },
+      "settleConfidentialInvoice": {
+        "txHash": "c60a81d352fcb277c4b187bea22757df339d2c8c096af0490b491a97feb2e059",
+        "txId": "00fdf8615e879a3ccfaf2b5fce3955249e8db9bcca29875f2347cd1a5df90548a7",
+        "blockHeight": 250852,
+        "blockHash": "9f3f809a945c0d3d7e0a542633c89a3380ea576f2e409e8d141da119b1063876",
+        "status": "SucceedEntirely",
+        "receiptIdHex": "fa1ccd4f6b061f46745f053afee56c2460c5cbb066413744e73274f384516822"
+      },
+      "verifyReceiptOnChain": {
+        "txHash": "0043a6dcb17177b8b3b4d291b078bbac4284222de67763d2b38be532f2ac3d4b",
+        "txId": "000942ae55a7f09d9dacf5a6566a321a0a9d08623e54add6048ba843baba5d74e5",
+        "blockHeight": 250861,
+        "blockHash": "a7f34d8b7ae54a74ae00e9a13f731281b0d0c9c7f6c24787823289a06a692c72",
+        "status": "SucceedEntirely",
+        "verified": true
+      },
       "rejectedDoubleSpendProof": "verified-locally-via-compact-runtime",
       "rejectedSanctionedJurisdictionProof": "verified-locally-via-compact-runtime"
+    },
+    "finalOnChainState": {
+      "settledInvoiceCount": "1",
+      "currentEpoch": "1",
+      "treasuryBalanceCommitmentHex": "ad62d127ef1ac13d4a73c26d995bb6ddd0fab47d23619dd04ac588c15146fc26",
+      "serializedStateBytes": 11697
     }
   }
 }

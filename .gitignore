@@ -5,6 +5,9 @@ dist/
 coverage/
 *.log
 .DS_Store
+.env
+.env.*
+.env.preview
 contracts/managed/proofvault/keys/
 docs/.pdf-preview/
 docs/.deck-render.html
