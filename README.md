@@ -6,13 +6,27 @@
 [![Compact](https://img.shields.io/badge/Compact-0.28.0%20(compactc%200.36.1)-34d399.svg)](./contracts/proofvault.compact)
 [![Midnight Runtime](https://img.shields.io/badge/compact--runtime-0.21.0-f59e0b.svg)](./package.json)
 [![DApp Connector](https://img.shields.io/badge/dapp--connector--api-4.1.0-38bdf8.svg)](./src/midnight/walletAdapter.ts)
+[![Tests](https://img.shields.io/badge/Vitest-52%20Passed%20(18%2F18%20Mutants%20Killed)-34d399.svg)](./tests/mutation-audit.test.ts)
 
 > Built for **AKINDO — Build Privacy-First Apps on Midnight (Wave 3)** (`midnightntwrk`).
-> **Live App (GitHub Pages):** [https://alphonshhhomenicmtu.github.io/proofvault-midnight/](https://alphonshhhomenicmtu.github.io/proofvault-midnight/)
+> - **Live App (GitHub Pages):** [https://alphonshhhomenicmtu.github.io/proofvault-midnight/](https://alphonshhhomenicmtu.github.io/proofvault-midnight/)
+> - **10-Slide Institutional Pitch Deck (PDF):** [`docs/proofvault-deck.pdf`](./docs/proofvault-deck.pdf)
+> - **Narrated 1080p Demo Video:** [https://www.youtube.com/watch?v=2SAttW3TaCU](https://www.youtube.com/watch?v=2SAttW3TaCU)
+> - **Privacy Boundary & `disclose()` Audit:** [`PRIVACY_BOUNDARY.md`](./PRIVACY_BOUNDARY.md)
 
 ProofVault enables DAOs, Web3 foundations, and institutional treasuries to settle contributor bounties, security audits, and vendor invoices with **cryptographic proof of solvency, budget compliance, and non-sanctioned jurisdiction**—without exposing counterparty identities, itemized invoice scopes, exact payout figures, country codes, or total treasury balances on-chain.
 
 Every confidential settlement writes an immutable **Selective-Disclosure Audit Receipt** to Midnight's public ledger (`AuditReceipt`), allowing external auditors and governance delegates to verify compliance claims independently while private operational data remains strictly inside the treasury's off-chain witness vault.
+
+---
+
+## V2 Champion Upgrades (Wave 3)
+
+- **Live Walletless Midnight Indexer GraphQL v4 State Reader (`src/midnight/indexerClient.ts`, `AuditTab.tsx`):** One-click live browser verification directly against `https://indexer.preview.midnight.network/api/v4/graphql` (CORS-enabled, zero wallet, zero Docker) showing real-time block height, block hash, protocol version (`2001100` / Ledger 9), `zswapMerkleTreeRoot`, and `contractAction(address)` state readback—plus Blockfrost `project_id` support and graceful `ENDPOINT_DECOMMISSIONED` detection for Midnight Preprod's post-`2026-10-09` migration.
+- **Real `window.midnight` Lace & 1AM Wallet Tx Dispatch (`src/midnight/walletAdapter.ts`):** Discovers CAIP-372 UUID providers (Lace Midnight, 1AM Wallet), invokes `hintUsage()`, hydrates shielded/unshielded/DUST addresses, `getDustBalance()`, and `proverServerUri` / `getProvingProvider(KeyMaterialProvider)`, and dispatches transactions via `balanceUnsealedTransaction() -> submitTransaction()` (or BIP-340 Schnorr `signData()` endorsement in static mode).
+- **Turnkey Testnet Deployment Pipeline & Verification CLI (`scripts/deploy-testnet.mjs`, `scripts/verify-onchain.mjs`, `deploy/preview.json`, `deploy/preprod.json`):** Full compiled-runtime lifecycle harness (`deploy -> registerApprovedJurisdiction -> proveTreasurySolvency -> settleConfidentialInvoice -> blocked replay & sanctioned guard`) + SHA-256 artifact manifests.
+- **Guard-Mutation Security Audit & `fast-check` Fuzzing (`tests/mutation-audit.test.ts`):** **52/52 automated Vitest tests** including programmatic deletion of all **18/18 `assert(...)` guards** in `contracts/proofvault.compact` (**100% mutant kill score**) and 7 `fast-check` property-based fuzz suites (which caught and fixed a real `settledEpoch` tamper check in `verifyAuditPackageAgainstLedger`).
+- **10-Slide Visual Institutional Pitch Deck & Formal Privacy Audit:** Committed at [`docs/proofvault-deck.pdf`](./docs/proofvault-deck.pdf) and [`PRIVACY_BOUNDARY.md`](./PRIVACY_BOUNDARY.md) covering all 11 witnesses, all 16 `disclose()` call sites, and an explicit Trusted vs. Trustless role matrix.
 
 ---
 
@@ -49,18 +63,18 @@ flowchart LR
         L5["settledInvoiceCount: Counter & Epoch"]
     end
 
-    subgraph Verify["Independent Auditor & DAO Portal"]
-        V1["Export Selective-Disclosure JSON"]
-        V2["Verify Digest, On-Chain Map, Nullifier, Root & Optional Auditor Tag"]
+    subgraph Verify["Walletless Indexer & Independent Auditor Portal"]
+        V1["Live Midnight Preview Indexer GraphQL v4"]
+        V2["7-Point Receipt Verifier & Scoped Auditor Key Check"]
     end
 
     Private --> Circuit
-    Circuit -->|"disclose() minimal commitments only"| Public
+    Circuit -->|"16 audited disclose() sites only"| Public
     Public --> Verify
     V1 --> V2
 ```
 
-### Privacy Boundary Matrix
+### Privacy Boundary Matrix (See [`PRIVACY_BOUNDARY.md`](./PRIVACY_BOUNDARY.md) for Line-by-Line Audit)
 
 | Data Field | Public Ledger Sees | Scoped Auditor Verifies | Permanently Shielded |
 | --- | :---: | :---: | :---: |
@@ -75,7 +89,7 @@ flowchart LR
 
 ---
 
-## Verified Midnight Compact Contract & Toolchain
+## Verified Midnight Compact Contract & Live Network Architecture
 
 The production contract [`contracts/proofvault.compact`](./contracts/proofvault.compact) compiles cleanly with the official Midnight Compact toolchain (Ledger 9 era), producing real TypeScript bindings, ZKIR/BZKIR circuit files, and proving/verifying keys:
 
@@ -83,7 +97,7 @@ The production contract [`contracts/proofvault.compact`](./contracts/proofvault.
 - **Language Version:** `0.28.0` (`pragma language_version >= 0.28.0;`)
 - **ZKIR Target:** `zkir-3.2.1`
 - **Runtime Package:** `@midnight-ntwrk/compact-runtime@0.21.0`
-- **Wallet Connector:** `@midnight-ntwrk/dapp-connector-api@4.1.0` (`window.midnight` CAIP-372 UUID discovery + `connect(networkId)` for `preprod`, `preview`, `mainnet`, and `undeployed`)
+- **Wallet Connector:** `@midnight-ntwrk/dapp-connector-api@4.1.0` (`window.midnight` CAIP-372 UUID discovery for Lace & 1AM + `balanceUnsealedTransaction` / `submitTransaction` / `getProvingProvider` / `signData`)
 
 ### Compiled Circuits Summary (from `contracts/managed/proofvault/compiler/contract-manifest.json`)
 
@@ -95,6 +109,15 @@ The production contract [`contracts/proofvault.compact`](./contracts/proofvault.
 | `updateGovernancePolicy` | 3,606 B | 1,053 B | 2,121 B | 10.8 MB | Operator-authenticated governance cap/floor rotation, circuit breaker pause/resume & epoch bump |
 | `verifyReceiptOnChain` | 969 B | 266 B | 1,353 B | 0.2 MB | Public verification circuit checking on-chain existence in `auditReceipts` |
 
+### Midnight Testnet Deployment & Live Indexer Status (Honest Telemetry)
+
+| Network | Live Indexer Endpoint | Live Status | Deployment Manifest |
+| --- | --- | --- | --- |
+| **Midnight Preview (Ledger 9)** | `https://indexer.preview.midnight.network/api/v4/graphql` | **LIVE & PUBLIC** (CORS `*`, zero auth, verified at block `#249,525`, protocolVersion `2001100`) | [`deploy/preview.json`](./deploy/preview.json) — ready; faucet (`faucet.preview.midnight.network`) requires interactive Cloudflare Turnstile |
+| **Midnight Preprod (Ledger 9)** | `https://indexer.midnight-preprod.blockfrost.io/api/v4/graphql` | Migrated to Blockfrost on `2026-10-09` (requires `BLOCKFROST_PROJECT_ID`) | [`deploy/preprod.json`](./deploy/preprod.json) — ready; faucet (`faucet.preprod.midnight.network`) requires interactive Cloudflare Turnstile |
+
+> **Zero-CAPTCHA-Bypass Policy:** ProofVault strictly respects Midnight's Cloudflare Turnstile faucet protection and never automates anti-bot gates. Operators with funded tNight/tDUST seeds can broadcast immediately via `MIDNIGHT_WALLET_SEED=<hex> npm run deploy:preview` (with a local Proof Server on `http://127.0.0.1:6300`). Judges can verify live Preview chain sync and compiled-runtime execution with zero setup using `npm run verify:onchain` and `npm run deploy:preview:dry`, or click **"Verify Live On-Chain State"** directly inside the **Audit Portal** on GitHub Pages.
+
 ---
 
 ## Application Screenshots
@@ -103,7 +126,7 @@ The production contract [`contracts/proofvault.compact`](./contracts/proofvault.
 | :---: | :---: |
 | ![Overview](./docs/screenshots/01-overview.png) | ![Settle](./docs/screenshots/02-settle.png) |
 
-| Selective-Disclosure Auditor Portal | Compact 0.28.0 Contract & Governance Inspector |
+| Live Midnight Indexer GraphQL & Auditor Portal | Compact 0.28.0 Contract & Governance Inspector |
 | :---: | :---: |
 | ![Audit](./docs/screenshots/03-audit.png) | ![Compact Spec](./docs/screenshots/04-compact-spec.png) |
 
@@ -111,50 +134,39 @@ The production contract [`contracts/proofvault.compact`](./contracts/proofvault.
 
 ## Judge Quickstart & Verification
 
-ProofVault runs in **two modes** so evaluators can verify everything immediately without installing a local Midnight node or browser extension:
+ProofVault runs in **three seamless layers** so evaluators can verify everything immediately without installing Docker or a browser extension:
 1. **Local Proof Engine (Default on GitHub Pages):** Deterministic browser-native SHA-256 commitments, depth-8 `HistoricMerkleTree`, anti-replay nullifier set, and 7-point selective-disclosure receipt verifier mirroring `contracts/proofvault.compact` 1:1.
-2. **Lace Wallet Mode (`@midnight-ntwrk/dapp-connector-api@4.1.0`):** Discovers injected Lace Midnight providers under `window.midnight`, requests network authorization via `connect(networkId)`, and hydrates `getConfiguration()`, `getShieldedAddresses()`, `getUnshieldedAddress()`, and `getDustAddress()`.
+2. **Live Walletless Midnight Indexer GraphQL v4 Reader (`Audit Portal`):** Queries `indexer.preview.midnight.network/api/v4/graphql` (or Preprod Blockfrost / custom URI) directly from the browser for real-time chain finality and contract state readback.
+3. **Lace & 1AM Wallet Mode (`@midnight-ntwrk/dapp-connector-api@4.1.0`):** Discovers injected `window.midnight` wallets, calls `connect(networkId)` + `hintUsage()`, hydrates Bech32m addresses, DUST balance, and prover URIs, and dispatches via `balanceUnsealedTransaction -> submitTransaction` or `signData`.
 
 ### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 2. Run Automated Tests (Compiled Compact Runtime + Security + Privacy Audit)
+### 2. Run Automated Tests (52 Tests: Compiled Runtime + 18/18 Guard-Mutation Audit + `fast-check` Fuzzing)
 ```bash
 npm test
 ```
 
-The Vitest suite runs **16 automated tests across 3 suites**:
-- `tests/compact-contract.test.ts` — executes the **real compiled `contracts/managed/proofvault/contract/index.js`** directly via `@midnight-ntwrk/compact-runtime@0.21.0`:
-  - Vault deployment, `HistoricMerkleTree<8>` registration, and Merkle path generation
-  - `proveTreasurySolvency` positive proofs and false-floor rejections
-  - `settleConfidentialInvoice` across `AuditorScoped` and `MinimalSolvency` tiers + post-settlement commitment re-blinding
-  - Double-settlement nullifier replay rejection (`Invoice nullifier already spent`)
-  - Sanctioned / unlisted jurisdiction Merkle proof rejection
-  - Unauthorized operator, budget tier cap violation, governance ceiling breach, reserve floor violation, and paused vault circuit breaker
-  - **On-Chain Serialized State Privacy Audit** proving raw operator keys, vendor IDs, line items, and salts never appear in `contractState.serialize()`
-- `tests/proof-engine.test.ts` — validates browser circuit-equivalence engine, all 6 UI presets (3 valid + 3 negative security guards), exported receipt JSON zero-PII checks, tampered receipt detection, and wrong auditor key detection
-- `tests/wallet-adapter.test.ts` — validates CAIP-372 UUID `window.midnight` discovery, Lace v4.1 session connection, and graceful fallback
+The Vitest suite runs **52 automated tests across 5 suites**:
+- `tests/mutation-audit.test.ts` (**26 tests**) — programmatic **18/18 guard-deletion mutation audit** stripping every single `assert(...)` in `contracts/proofvault.compact` from the compiled runtime JS one by one to verify 100% mutant kill coverage, plus **7 `fast-check` property-based fuzzing suites** covering balance conservation, state immutability, zero-PII JSON exports, single-field receipt tamper detection, and serialized `ContractState` zero-leakage.
+- `tests/compact-contract.test.ts` (**8 tests**) — executes the **real compiled `contracts/managed/proofvault/contract/index.js`** directly via `@midnight-ntwrk/compact-runtime@0.21.0` across all 5 circuits + serialized public state privacy audit.
+- `tests/proof-engine.test.ts` (**6 tests**) — validates browser circuit-equivalence engine, all 6 UI presets (3 valid + 3 negative security guards), zero-PII receipts, tampered receipt detection, and wrong auditor key detection.
+- `tests/wallet-adapter.test.ts` (**6 tests**) — validates Lace & 1AM CAIP-372 discovery, `hintUsage`, DUST balance hydration, `balanceUnsealedTransaction -> submitTransaction` dispatch, `signData` endorsement, and `KeyMaterialProvider`.
+- `tests/indexer-client.test.ts` (**6 tests**) — validates live Midnight GraphQL v4 query construction, `ContractCall` parsing, undeployed local address handling, HTTP 410 Preprod Blockfrost migration detection, and `project_id` header forwarding.
 
-### 3. Re-Compile the Compact Smart Contract (Optional — Pre-Compiled Artifacts Included)
+### 3. Verify Live Midnight Preview Chain & Deployment Readiness
 ```bash
-# Install Midnight Compact CLI if not already installed:
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
-compact update 0.36.1
-
-# Fast TypeScript + ZKIR compilation:
-npm run compile:contract:fast
-
-# Full compilation including ZKIR proving & verifying keys:
-npm run compile:contract
+npm run verify:onchain       # Live GraphQL v4 check against indexer.preview.midnight.network
+npm run deploy:preview:dry   # Artifact SHA-256 check + live chain probe + 5-stage compiled lifecycle
 ```
 
-### 4. Run the Frontend Locally or Build Static Bundle for GitHub Pages
+### 4. Build Production Bundle & Re-Export 10-Slide Pitch Deck PDF
 ```bash
-npm run dev       # Local dev server at http://localhost:5173
-npm run build     # Type-checks and outputs static GitHub Pages bundle to dist/
-npm run preview   # Serves production dist/ bundle at http://localhost:4173
+npm run build        # tsc --noEmit && vite build -> dist/
+npm run build:deck   # Re-renders docs/proofvault-deck.pdf (10 widescreen slides)
+npm run preview      # Serves production dist/ bundle at http://localhost:4173
 ```
 
 ---
@@ -163,49 +175,43 @@ npm run preview   # Serves production dist/ bundle at http://localhost:4173
 
 ```text
 ├── contracts/
-│   ├── proofvault.compact                 # Midnight Compact 0.28.0 ZK smart contract
-│   └── managed/proofvault/                # Real compactc 0.36.1 compiled outputs
-│       ├── compiler/                      # contract-info.json & contract-manifest.json
-│       ├── contract/                      # Compiled index.js, index.d.ts, source map
-│       └── zkir/                          # Compiled .zkir & .bzkir circuits for all 5 circuits
+│   ├── proofvault.compact                 # Midnight Compact 0.28.0 ZK smart contract (18 audited guards)
+│   └── managed/proofvault/                # Real compactc 0.36.1 compiled outputs (JS, d.ts, ZKIR/BZKIR)
+├── deploy/
+│   ├── preview.json                       # Midnight Preview Ledger 9 deployment manifest & SHA-256 checksums
+│   └── preprod.json                       # Midnight Preprod Blockfrost deployment manifest
 ├── docs/
-│   ├── PITCH_DECK.md                      # 9-slide Wave 3 pitch deck outline
-│   └── screenshots/                       # 4 Retina UI verification screenshots
+│   ├── proofvault-deck.pdf                # 10-slide institutional visual pitch deck (PDF)
+│   ├── PITCH_DECK.md                      # Markdown deck outline
+│   └── screenshots/                       # 4 refreshed Retina V2 UI verification screenshots
+├── scripts/
+│   ├── deploy-testnet.mjs                 # Turnkey Preview/Preprod deployment & compiled lifecycle script
+│   ├── verify-onchain.mjs                 # Walletless live Midnight Preview Indexer GraphQL v4 CLI verifier
+│   └── build-deck.mjs                     # Reproducible headless Chrome 10-slide PDF deck generator
 ├── src/
 │   ├── midnight/
-│   │   ├── types.ts                       # Dual-ledger & selective-disclosure TypeScript types
-│   │   ├── proofEngine.ts                 # Browser cryptographic circuit-equivalence engine & verifier
-│   │   ├── walletAdapter.ts               # @midnight-ntwrk/dapp-connector-api v4.1 Lace connector
+│   │   ├── types.ts                       # Dual-ledger, wallet dispatch & live indexer TypeScript types
+│   │   ├── proofEngine.ts                 # Browser cryptographic circuit-equivalence engine & 7-point verifier
+│   │   ├── indexerClient.ts               # Live Midnight Preview / Preprod Indexer GraphQL v4 client
+│   │   ├── walletAdapter.ts               # Lace & 1AM dapp-connector-api v4.1 connector & tx dispatcher
 │   │   ├── presets.ts                     # Seeded treasury vault & 6 interactive demo scenarios
 │   │   └── compactSource.ts               # Compiled circuit metadata & source bindings
 │   ├── components/
 │   │   ├── OverviewTab.tsx                # Dual-ledger split workbench & solvency prover
-│   │   ├── SettleTab.tsx                  # Confidential invoice settlement & 6-stage ZK pipeline
-│   │   ├── AuditTab.tsx                   # Selective-disclosure receipt verifier & tamper tester
-│   │   └── CompactSpecTab.tsx             # Compiler stats, Merkle registry, governance & source
-│   ├── App.tsx
-│   ├── main.tsx
-│   └── styles.css
+│   │   ├── SettleTab.tsx                  # Confidential settlement, 6-stage ZK pipeline & wallet dispatch
+│   │   ├── AuditTab.tsx                   # Live Midnight Indexer GraphQL reader & 7-point receipt verifier
+│   │   └── CompactSpecTab.tsx             # Compiler stats, Merkle registry, governance & source viewer
+│   └── App.tsx
 ├── tests/
+│   ├── mutation-audit.test.ts             # 18/18 guard-deletion mutation audit + 7 fast-check fuzz suites
 │   ├── compact-contract.test.ts           # Real compiled Compact runtime integration & privacy tests
 │   ├── proof-engine.test.ts               # Browser engine & selective-disclosure verifier tests
-│   └── wallet-adapter.test.ts             # Lace v4.1 DApp Connector unit tests
+│   ├── wallet-adapter.test.ts             # Lace & 1AM connector, KeyMaterialProvider & tx dispatch tests
+│   └── indexer-client.test.ts             # Live Midnight Indexer GraphQL v4 client tests
+├── PRIVACY_BOUNDARY.md                    # 11-witness & 16-disclose() audit + Trusted vs Trustless matrix
 ├── SPEC.md                                # Wave 3 judging rubric & technical specification
 └── LICENSE                                # Apache License 2.0
 ```
-
----
-
-## 2-Minute Demo Walkthrough Script
-
-- **0:00–0:20 | The Privacy Dilemma & Overview (`Overview` tab):**
-  Show the split **Private Off-Chain Witness Vault** (amber boundary: `$2,392,300` exact shielded balance, blinding salt, operator secret key) side-by-side with the **Public Midnight Ledger State** (cyan boundary: only `treasuryBalanceCommitment`, `approvedJurisdictions` `HistoricMerkleTree<8>` root, governance ceiling, and reserve floor). Click **Mask** to demonstrate off-chain privacy, then click **Prove >= $2,000,000** to execute `proveTreasurySolvency()` and generate an on-chain solvency attestation without exposing the exact balance; click **Test False Claim (>= $3,000,000)** to watch the circuit reject an unprovable claim.
-- **0:20–1:00 | Confidential Invoice Settlement & Guard Tests (`Settle Invoice` tab):**
-  Select **ZK Security Audit Bounty (CH)** (`$42,500` under a `$50,000` cap, `AuditorScoped`) and click **Execute ZK Settlement Circuit**. Point out the 6 passing ZK constraint stages, the newly published `receiptId`, `nullifier`, and re-blinded `nextTreasuryBalanceCommitment`, and the amber **Redacted Off-Chain Witnesses** list proving vendor identity, line items, country, and exact amount never hit the chain. Next, click **Sanctioned Jurisdiction Test (KP)** and **Double-Settlement Replay Test** to show both attacks rejected cleanly before touching ledger state.
-- **1:00–1:35 | Independent Selective-Disclosure Verification (`Audit Portal` tab):**
-  Click **Audit Receipt →** to jump directly to the Auditor Portal. Highlight the 7/7 passing cryptographic checks (including `Auditor Viewing Key Scope Binding`). Click **Test Wrong Auditor Key** to show unauthorized auditors fail scoped binding, then click **Simulate Tampered Cap** to prove any post-hoc edit to a receipt JSON breaks on-chain immutability verification. Restore and export the clean zero-PII JSON receipt.
-- **1:35–2:00 | Compiled Compact 0.28.0 Artifacts & Lace Readiness (`Compact Spec` tab):**
-  Open **Compact Spec** to show the real `compactc 0.36.1` (`zkir-3.2.1`) compiled circuit table, insert a new compliant jurisdiction (`FR` — France) into the live `HistoricMerkleTree`, toggle the governance circuit breaker, and point out the `Connect Lace` (`@midnight-ntwrk/dapp-connector-api@4.1.0`) selector in the header.
 
 ---
 

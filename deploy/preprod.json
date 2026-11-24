@@ -1,0 +1,38 @@
+{
+  "schema": "proofvault.deployment-manifest.v2",
+  "project": "ProofVault",
+  "network": "preprod",
+  "ledgerTarget": "Ledger 9 (zkir-3.2.1)",
+  "compiler": {
+    "compactc": "0.36.1",
+    "compactLanguageVersion": "0.28.0",
+    "runtimePackage": "@midnight-ntwrk/compact-runtime@0.21.0",
+    "connectorPackage": "@midnight-ntwrk/dapp-connector-api@4.1.0"
+  },
+  "status": "ready-awaiting-faucet-funding-and-blockfrost-token",
+  "statusNote": "Legacy indexer.preprod.midnight.network and rpc.preprod.midnight.network were decommissioned on 2026-10-09 and migrated to Blockfrost (requiring BLOCKFROST_PROJECT_ID). Additionally, https://faucet.preprod.midnight.network/ is gated by interactive Cloudflare Turnstile human verification. Set BLOCKFROST_PROJECT_ID + MIDNIGHT_WALLET_SEED + local Proof Server (localhost:6300) and run `npm run deploy:preprod` to broadcast live.",
+  "endpoints": {
+    "indexerGraphql": "https://indexer.midnight-preprod.blockfrost.io/api/v4/graphql",
+    "legacyIndexerDecommissioned": "https://indexer.preprod.midnight.network/api/v3/graphql",
+    "rpc": "https://rpc.midnight-preprod.blockfrost.io",
+    "faucet": "https://faucet.preprod.midnight.network/",
+    "explorer": "https://preprod.midnightexplorer.com/",
+    "proofServerDefault": "http://127.0.0.1:6300",
+    "migrationGuide": "https://docs.midnight.network/guides/networks-and-environments#blockfrost-the-mainnet-indexer-and-rpc-provider"
+  },
+  "compiledArtifacts": {
+    "sourceSha256": "f6f74e26e7a0871970a821ce99b53936b45c4ceb5525b81654b34992c9a7cc68",
+    "contractJsSha256": "dbb62db0294d9298ac0983aa3ee26469e3158160970e85e210c0682fb5eb8e91"
+  },
+  "deployment": {
+    "contractAddress": null,
+    "deployTxHash": null,
+    "deployBlockHeight": null,
+    "lifecycleTransactions": {
+      "registerApprovedJurisdiction_CH": null,
+      "registerApprovedJurisdiction_SG": null,
+      "proveTreasurySolvency": null,
+      "settleConfidentialInvoice": null
+    }
+  }
+}

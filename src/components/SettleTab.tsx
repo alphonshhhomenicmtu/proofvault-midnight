@@ -8,13 +8,15 @@ import {
   Lock,
   ShieldAlert,
   ShieldCheck,
+  Wallet,
   XCircle
 } from "lucide-react";
 import {
   DisclosureTier,
   type InvoiceSettlementInput,
   type InvoiceSettlementResult,
-  type PublicLedgerSnapshot
+  type PublicLedgerSnapshot,
+  type WalletConnectionState
 } from "../midnight/types";
 import {
   SETTLEMENT_PRESETS,
@@ -25,7 +27,10 @@ import {
 interface SettleTabProps {
   ledger: PublicLedgerSnapshot;
   lastResult: InvoiceSettlementResult | null;
+  walletState: WalletConnectionState;
+  dispatchingWallet: boolean;
   onSettle: (input: InvoiceSettlementInput) => void;
+  onDispatchWallet: () => void;
   onInspectReceipt: (receiptId: string) => void;
 }
 
@@ -37,7 +42,10 @@ const EXTRA_TEST_JURISDICTIONS = [
 export function SettleTab({
   ledger,
   lastResult,
+  walletState,
+  dispatchingWallet,
   onSettle,
+  onDispatchWallet,
   onInspectReceipt
 }: SettleTabProps) {
   const [selectedPresetId, setSelectedPresetId] = useState<string>(SETTLEMENT_PRESETS[0].id);
@@ -354,15 +362,47 @@ export function SettleTab({
                   </div>
                 </div>
                 {lastResult.ok && lastResult.receipt && (
-                  <button
-                    type="button"
-                    className="btn sm"
-                    onClick={() => onInspectReceipt(lastResult.receipt!.receiptId)}
-                  >
-                    Audit Receipt <ArrowRight size={13} />
-                  </button>
+                  <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+                    {walletState.walletConnected && (
+                      <button
+                        type="button"
+                        className="btn sm primary"
+                        onClick={onDispatchWallet}
+                        disabled={dispatchingWallet}
+                      >
+                        <Wallet size={13} />
+                        {dispatchingWallet ? "Dispatching..." : `Sign / Dispatch (${walletState.walletName})`}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn sm"
+                      onClick={() => onInspectReceipt(lastResult.receipt!.receiptId)}
+                    >
+                      Audit Receipt <ArrowRight size={13} />
+                    </button>
+                  </div>
                 )}
               </div>
+
+              {lastResult.walletDispatch && (
+                <div
+                  className={`status-banner ${lastResult.walletDispatch.ok ? "success" : "error"}`}
+                  style={{ marginBottom: 14, fontSize: 12 }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600 }}>
+                      {lastResult.walletDispatch.walletName} Dispatch ({lastResult.walletDispatch.dispatchPath})
+                    </div>
+                    <div style={{ opacity: 0.92, marginTop: 2 }}>{lastResult.walletDispatch.detail}</div>
+                    {lastResult.walletDispatch.signatureHex && (
+                      <div className="mono" style={{ marginTop: 4, fontSize: 11 }}>
+                        Sig ({lastResult.walletDispatch.signatureScheme}): 0x{truncateHex(lastResult.walletDispatch.signatureHex, 14, 10)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="pipeline-list" style={{ marginBottom: 14 }}>
                 {lastResult.steps.map((step) => (

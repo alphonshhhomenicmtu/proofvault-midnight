@@ -862,7 +862,8 @@ export function verifyAuditPackageAgainstLedger(
     onChainReceipt!.budgetTierCapCents === receipt.budgetTierCapCents &&
     onChainReceipt!.jurisdictionRoot === receipt.jurisdictionRoot &&
     onChainReceipt!.auditorTag === receipt.auditorTag &&
-    onChainReceipt!.disclosureTier === receipt.disclosureTier;
+    onChainReceipt!.disclosureTier === receipt.disclosureTier &&
+    onChainReceipt!.settledEpoch === receipt.settledEpoch;
 
   checks.push({
     name: "On-Chain Field & Budget Tier Immutability",

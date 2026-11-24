@@ -1,0 +1,74 @@
+{
+  "schema": "proofvault.deployment-manifest.v2",
+  "project": "ProofVault",
+  "network": "preview",
+  "ledgerTarget": "Ledger 9 (zkir-3.2.1)",
+  "compiler": {
+    "compactc": "0.36.1",
+    "compactLanguageVersion": "0.28.0",
+    "runtimePackage": "@midnight-ntwrk/compact-runtime@0.21.0",
+    "connectorPackage": "@midnight-ntwrk/dapp-connector-api@4.1.0"
+  },
+  "status": "ready-awaiting-faucet-funding",
+  "statusNote": "Official Midnight Preview faucet (https://faucet.preview.midnight.network/) requires interactive Cloudflare Turnstile verification to dispense tNight/tDUST. In strict compliance with anti-bot policies, ProofVault never bypasses CAPTCHA gates. Run scripts/deploy-testnet.mjs with a funded MIDNIGHT_WALLET_SEED and local Proof Server (localhost:6300) to broadcast and automatically populate contractAddress and txHashes below.",
+  "endpoints": {
+    "indexerGraphql": "https://indexer.preview.midnight.network/api/v4/graphql",
+    "indexerWs": "wss://indexer.preview.midnight.network/api/v4/graphql/ws",
+    "rpc": "https://rpc.preview.midnight.network",
+    "faucet": "https://faucet.preview.midnight.network/",
+    "explorer": "https://explorer.preview.midnight.network/",
+    "proofServerDefault": "http://127.0.0.1:6300"
+  },
+  "verifiedLiveChainHead": {
+    "verifiedAtIso": "2026-11-24T09:45:36.000Z",
+    "blockHeight": 249525,
+    "blockHash": "ec60919f589dd3bdf5b591ddd0ad4fdea165278fbd399ef79ad4a5e3a6cc0ca4",
+    "protocolVersion": 2001100,
+    "zswapMerkleTreeRoot": "734e050b779a945da179d613118691dcef3e864d3390e72c98d60013a148218f64",
+    "corsPublicAccess": true
+  },
+  "compiledArtifacts": {
+    "sourceSha256": "f6f74e26e7a0871970a821ce99b53936b45c4ceb5525b81654b34992c9a7cc68",
+    "contractJsSha256": "dbb62db0294d9298ac0983aa3ee26469e3158160970e85e210c0682fb5eb8e91",
+    "circuits": {
+      "settleConfidentialInvoice": {
+        "zkirSha256": "4e37bb2b62b51bebfbb87d9ee0aa306cf70ecb9946552cac94c7267e3de34b5f",
+        "bzkirSha256": "d9569d7da2adb47ca33a2d02cc34af758f8cc24df90675d19d0009c2eaaab594",
+        "verifierSha256": "11bfb53a2f236555e9efc3f9565a693839305c2c09cc58bba71670029476116d"
+      },
+      "proveTreasurySolvency": {
+        "zkirSha256": "eaeba11385fe6e113b0b1659a363e7e70a52d911b7cf62b918b896f5e2b8ba10",
+        "bzkirSha256": "10d13386a5f6d73f1d670bdeda37b281f03cb76564cdc7712f02fa5c0ec584eb",
+        "verifierSha256": "dce79f6212bd36859a5d25e5c1d2fa5f90c4856851f4ff7cc7e98ea8cb3c404f"
+      },
+      "registerApprovedJurisdiction": {
+        "zkirSha256": "f91936a57d4ab471ab07dd95a4ee773d93b9128637e209951f33abebe847986e",
+        "bzkirSha256": "03e6192c2c74c9e72e85b2609a52c6def72a3a028466acd5480b84fcf6ff7997",
+        "verifierSha256": "2b12075240da4ad0d4e8f0c9853b182f895dad1ece54bd5357e49a9413c404f"
+      },
+      "updateGovernancePolicy": {
+        "zkirSha256": "b119f072bb7c7a817d88178d70d96b30bdf5dd6903483c2f9e8c30ba64df4326",
+        "bzkirSha256": "39ca4d2815720eea4cfd045718d5186c49b737fefb4fd00b55d74615cd42b8cd",
+        "verifierSha256": "8fe870a55ebff81dfee0cb9576a0f7d60597629f5857821da39cdf67df3f87"
+      },
+      "verifyReceiptOnChain": {
+        "zkirSha256": "41c64f02134857eb91d00ccb36bc8b87ec02c580106f52df7c133839bcae599d",
+        "bzkirSha256": "bf4c27a4afdf3a393e7a488a315470e9674aefbfb794442c934cb8bdf01f2fab",
+        "verifierSha256": "aa4fa2ca83088d1088d3ced8203fdc07cda7cbfa0d2a2f0d9f3cec0fdf305ed1"
+      }
+    }
+  },
+  "deployment": {
+    "contractAddress": null,
+    "deployTxHash": null,
+    "deployBlockHeight": null,
+    "lifecycleTransactions": {
+      "registerApprovedJurisdiction_CH": null,
+      "registerApprovedJurisdiction_SG": null,
+      "proveTreasurySolvency": null,
+      "settleConfidentialInvoice": null,
+      "rejectedDoubleSpendProof": "verified-locally-via-compact-runtime",
+      "rejectedSanctionedJurisdictionProof": "verified-locally-via-compact-runtime"
+    }
+  }
+}

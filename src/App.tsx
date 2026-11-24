@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import type { ConnectedAPI } from "@midnight-ntwrk/dapp-connector-api";
 import {
   Code2,
   FileCheck2,
@@ -12,7 +13,8 @@ import { createSeededProofVaultEngine } from "./midnight/presets";
 import {
   connectMidnightWallet,
   createDefaultWalletState,
-  discoverMidnightWallets
+  discoverMidnightWallets,
+  dispatchWalletTransaction
 } from "./midnight/walletAdapter";
 import type {
   InvoiceSettlementInput,
@@ -31,6 +33,7 @@ type ActiveTab = "overview" | "settle" | "audit" | "spec";
 
 export function App() {
   const engineRef = useRef(createSeededProofVaultEngine());
+  const connectedApiRef = useRef<ConnectedAPI | undefined>(undefined);
   const [revision, setRevision] = useState(0);
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [lastSolvency, setLastSolvency] = useState<SolvencyAttestation | null>(() =>
@@ -41,8 +44,9 @@ export function App() {
   const [walletState, setWalletState] = useState<WalletConnectionState>(() =>
     createDefaultWalletState()
   );
-  const [networkId, setNetworkId] = useState<MidnightNetworkId>("preprod");
+  const [networkId, setNetworkId] = useState<MidnightNetworkId>("preview");
   const [connectingWallet, setConnectingWallet] = useState(false);
+  const [dispatchingWallet, setDispatchingWallet] = useState(false);
 
   // Force clean snapshot read whenever engine state mutates
   void revision;
@@ -67,6 +71,26 @@ export function App() {
     },
     [bump]
   );
+
+  const handleDispatchLastSettlement = useCallback(async () => {
+    if (!lastSettlement?.ok || !lastSettlement.receipt || !connectedApiRef.current) {
+      return;
+    }
+    setDispatchingWallet(true);
+    try {
+      const dispatch = await dispatchWalletTransaction(connectedApiRef.current, {
+        circuitName: "settleConfidentialInvoice",
+        walletName: walletState.walletName ?? "Midnight Wallet",
+        networkId: walletState.networkId,
+        proverServerUri: walletState.serviceUris?.proverServerUri,
+        commitmentPayloadHex: lastSettlement.receipt.receiptId
+      });
+      setLastSettlement((prev) => (prev ? { ...prev, walletDispatch: dispatch } : prev));
+      setWalletState((prev) => ({ ...prev, lastDispatch: dispatch }));
+    } finally {
+      setDispatchingWallet(false);
+    }
+  }, [lastSettlement, walletState]);
 
   const handleAddJurisdiction = useCallback(
     (code: string, label: string) => {
@@ -94,11 +118,12 @@ export function App() {
     bump();
   }, [bump]);
 
-  const handleConnectLace = useCallback(async () => {
+  const handleConnectWallet = useCallback(async () => {
     setConnectingWallet(true);
     try {
       const discovered = discoverMidnightWallets();
-      const { state } = await connectMidnightWallet(discovered[0]?.key, networkId);
+      const { state, connectedApi } = await connectMidnightWallet(discovered[0]?.key, networkId);
+      connectedApiRef.current = connectedApi;
       setWalletState(state);
     } finally {
       setConnectingWallet(false);
@@ -170,8 +195,8 @@ export function App() {
               value={networkId}
               onChange={(e) => setNetworkId(e.target.value as MidnightNetworkId)}
             >
-              <option value="preprod">preprod</option>
               <option value="preview">preview</option>
+              <option value="preprod">preprod</option>
               <option value="mainnet">mainnet</option>
               <option value="undeployed">local-dev</option>
             </select>
@@ -186,15 +211,15 @@ export function App() {
             <button
               type="button"
               className="btn sm"
-              onClick={handleConnectLace}
+              onClick={handleConnectWallet}
               disabled={connectingWallet}
             >
               <Wallet size={13} />
               {connectingWallet
                 ? "Connecting..."
                 : walletState.walletConnected
-                  ? "Reconnect Lace"
-                  : "Connect Lace"}
+                  ? "Reconnect Wallet"
+                  : "Connect Lace / 1AM"}
             </button>
 
             <button
@@ -223,13 +248,15 @@ export function App() {
           </div>
         )}
 
-        {walletState.walletConnected && walletState.shieldedAddress && (
+        {walletState.walletConnected && (
           <div className="wallet-banner">
-            <span className="mono">
-              Connected via @midnight-ntwrk/dapp-connector-api@4.1.0 · Shielded:{" "}
-              {walletState.shieldedAddress.slice(0, 26)}...
+            <span className="mono" style={{ fontSize: 12 }}>
+              Connected via @midnight-ntwrk/dapp-connector-api@4.1.0 ({walletState.walletName})
+              {walletState.shieldedAddress ? ` · Shielded: ${walletState.shieldedAddress.slice(0, 22)}...` : ""}
+              {walletState.serviceUris?.proverServerUri ? ` · Prover: ${walletState.serviceUris.proverServerUri}` : ` · Proving: ${walletState.provingMode}`}
+              {walletState.dustBalance !== null ? ` · DUST: ${walletState.dustBalance}` : ""}
             </span>
-            <span className="badge emerald">LACE CONNECTED</span>
+            <span className="badge emerald">WALLET CONNECTED</span>
           </div>
         )}
 
@@ -247,7 +274,10 @@ export function App() {
           <SettleTab
             ledger={ledger}
             lastResult={lastSettlement}
+            walletState={walletState}
+            dispatchingWallet={dispatchingWallet}
             onSettle={handleSettle}
+            onDispatchWallet={handleDispatchLastSettlement}
             onInspectReceipt={(receiptId) => {
               setSelectedReceiptId(receiptId);
               setActiveTab("audit");
@@ -258,6 +288,7 @@ export function App() {
         {activeTab === "audit" && (
           <AuditTab
             ledger={ledger}
+            walletState={walletState}
             selectedReceiptId={selectedReceiptId}
             onSelectReceipt={setSelectedReceiptId}
             buildExportPackage={buildExportPackage}
@@ -274,7 +305,7 @@ export function App() {
       </main>
 
       <footer className="footer">
-        ProofVault · Built for Midnight Network (Compact 0.28.0 / compactc 0.36.1 / Ledger 9) · Licensed under Apache-2.0
+        ProofVault · Built for Midnight Network (Compact 0.28.0 / compactc 0.36.1 / Ledger 9) · Live Preview Indexer GraphQL v4 · Licensed under Apache-2.0
       </footer>
     </div>
   );

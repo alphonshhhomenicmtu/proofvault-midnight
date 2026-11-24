@@ -101,6 +101,22 @@ export interface OnChainPayloadPreview {
   shieldedWitnessFieldsRedacted: string[];
 }
 
+export interface WalletDispatchResult {
+  ok: boolean;
+  dispatchPath: "balance-and-submit" | "wallet-sign-attestation" | "unavailable";
+  walletName: string;
+  networkId: MidnightNetworkId;
+  proverPath: string;
+  submittedOnChain: boolean;
+  balancedTxHex?: string;
+  signatureHex?: string;
+  verifyingKeyHex?: string;
+  signatureScheme?: string;
+  detail: string;
+  timestampIso: string;
+  error?: string;
+}
+
 export interface InvoiceSettlementResult {
   ok: boolean;
   error?: string;
@@ -108,6 +124,7 @@ export interface InvoiceSettlementResult {
   steps: ZkPipelineStep[];
   payloadPreview?: OnChainPayloadPreview;
   proofTimeMs: number;
+  walletDispatch?: WalletDispatchResult;
 }
 
 export interface SolvencyAttestation {
@@ -151,7 +168,9 @@ export interface ReceiptVerificationResult {
 export interface DiscoveredWallet {
   key: string;
   name: string;
+  rdns: string;
   apiVersion: string;
+  brand: "lace" | "1am" | "other";
 }
 
 export interface WalletConnectionState {
@@ -160,15 +179,45 @@ export interface WalletConnectionState {
   walletConnected: boolean;
   walletName: string | null;
   walletKey: string | null;
+  walletRdns: string | null;
   shieldedAddress: string | null;
   unshieldedAddress: string | null;
   dustAddress: string | null;
+  dustBalance: string | null;
+  dustCap: string | null;
+  provingMode: "wallet-proving-provider" | "http-prover" | "local-engine";
   serviceUris: {
     indexerUri?: string;
     indexerWsUri?: string;
     proverServerUri?: string;
     substrateNodeUri?: string;
   } | null;
+  lastDispatch: WalletDispatchResult | null;
+  error: string | null;
+}
+
+export interface LiveIndexerSnapshot {
+  ok: boolean;
+  network: "preview" | "preprod" | "custom";
+  endpoint: string;
+  explorerBaseUrl: string | null;
+  fetchedAtIso: string;
+  latencyMs: number;
+  blockHeight: number | null;
+  blockHash: string | null;
+  blockTimestampIso: string | null;
+  protocolVersion: number | null;
+  zswapMerkleTreeRoot: string | null;
+  dustCommitmentMerkleTreeRoot: string | null;
+  queriedContractAddress: string | null;
+  contractFound: boolean;
+  contractActionType: string | null;
+  contractEntryPoint: string | null;
+  contractStateBytes: number | null;
+  contractStatePreviewHex: string | null;
+  contractBlockHeight: number | null;
+  contractTxHash: string | null;
+  migrationNotice: string | null;
   error: string | null;
 }
 
